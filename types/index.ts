@@ -27,6 +27,70 @@ export interface UserRoleRecord {
   created_at?: string;
 }
 
+export type StaffRole =
+  | "PRESIDENTE"
+  | "ADMINISTRADOR"
+  | "MESA_TECNICA"
+  | "ARBITRO"
+  | "DIRECTOR_TECNICO"
+  | "LOGISTICA"
+  | "PRENSA";
+
+export interface StaffProfile {
+  user_id: string;
+  full_name: string;
+  email: string;
+  position: string;
+  responsibilities?: string | null;
+  phone?: string | null;
+  status: "ACTIVO" | "INACTIVO";
+  role?: UserRole;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const STAFF_ASSIGNABLE_ROLES: {
+  role: StaffRole;
+  label: string;
+  desc: string;
+}[] = [
+  {
+    role: "PRESIDENTE",
+    label: "Presidente de la Liga",
+    desc: "Gobierno general y homologación de torneos y temporadas.",
+  },
+  {
+    role: "ADMINISTRADOR",
+    label: "Administrador Deportivo",
+    desc: "Gestión de fixture, equipos, jugadores, canchas y árbitros.",
+  },
+  {
+    role: "MESA_TECNICA",
+    label: "Mesa Técnica / Cronometrador",
+    desc: "Control de partidos en vivo, reloj, faltas, goles y actas.",
+  },
+  {
+    role: "ARBITRO",
+    label: "Cuerpo Arbitral",
+    desc: "Visualización de designaciones, firma de actas e incidencias.",
+  },
+  {
+    role: "DIRECTOR_TECNICO",
+    label: "Director Técnico / Delegado",
+    desc: "Gestión de plantilla, alineaciones y convocatoria de su club.",
+  },
+  {
+    role: "LOGISTICA",
+    label: "Responsable de Logística",
+    desc: "Inspección de canchas, balón reglamentario, DEA y suministros.",
+  },
+  {
+    role: "PRENSA",
+    label: "Prensa & Medios",
+    desc: "Notas oficiales, comunicados de prensa y cobertura de resultados.",
+  },
+];
+
 export type SeasonStatus = "BORRADOR" | "ACTIVA" | "FINALIZADA";
 
 export interface Season {

@@ -29,6 +29,7 @@ import {
   Bell,
   Lock,
   ExternalLink,
+  UserCog,
 } from "lucide-react";
 
 // RBAC: Módulos permitidos por cada rol según los requerimientos
@@ -50,6 +51,7 @@ const ROLE_ALLOWED_MODULES: Record<UserRole, string[]> = {
     "/dashboard/canchas",
     "/dashboard/partidos/match-301/logistica",
     "/dashboard/prensa",
+    "/dashboard/personal",
     "/dashboard/usuarios",
     "/dashboard/configuracion",
   ],
@@ -133,13 +135,7 @@ const ROLE_ALLOWED_MODULES: Record<UserRole, string[]> = {
     "/dashboard/estadisticas",
     "/dashboard/prensa",
   ],
-  PUBLICO: [
-    "/dashboard",
-    "/dashboard/clasificacion",
-    "/dashboard/estadisticas",
-    "/dashboard/calendario",
-    "/dashboard/partidos",
-  ],
+  PUBLICO: [],
 };
 
 const navigationItems = [
@@ -165,6 +161,7 @@ const navigationItems = [
   { name: "Canchas", href: "/dashboard/canchas", icon: MapPin },
   { name: "Logística", href: "/dashboard/partidos/match-301/logistica", icon: ClipboardCheck },
   { name: "Prensa", href: "/dashboard/prensa", icon: Newspaper },
+  { name: "Personal de la Liga", href: "/dashboard/personal", icon: UserCog },
   { name: "Usuarios", href: "/dashboard/usuarios", icon: Users },
   { name: "Configuración", href: "/dashboard/configuracion", icon: Settings },
 ];
@@ -476,12 +473,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     if (!isAuthLoading && !authError) {
       if (!isAuthenticated) {
         if (window.location.pathname.startsWith("/dashboard")) {
-          router.replace("/login");
+          router.replace("/acceso-institucional");
         }
       } else if (currentUserRole === "PUBLICO") {
-        if (window.location.pathname !== "/") {
-          router.replace("/");
-        }
+        router.replace("/");
       }
     }
   }, [isAuthenticated, isAuthLoading, currentUserRole, authError, router]);
@@ -532,16 +527,38 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-4 border border-rose-500/30">
             <Lock className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-black text-white">Sesión Requerida</h2>
+          <h2 className="text-xl font-black text-white">Acceso Institucional Requerido</h2>
           <p className="text-xs text-slate-400 mt-2">
-            Las funciones administrativas de FUTSALBA requieren una sesión válida
-            de Supabase Auth.
+            Las funciones operativas de FUTSALBA requieren una cuenta autorizada de personal.
           </p>
           <Link
-            href="/login"
+            href="/acceso-institucional"
             className="mt-6 inline-flex items-center justify-center px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-lg shadow-blue-600/30"
           >
-            Iniciar Sesión
+            Acceso Institucional
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Los usuarios con rol PUBLICO nunca pueden acceder a /dashboard
+  if (currentUserRole === "PUBLICO") {
+    return (
+      <div className="min-h-screen bg-[#060b14] flex flex-col items-center justify-center text-white p-4">
+        <div className="sports-card max-w-md w-full p-8 rounded-3xl border border-slate-800 text-center shadow-2xl">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-4 border border-amber-500/30">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-black text-white">Acceso Restringido</h2>
+          <p className="text-xs text-slate-400 mt-2 mb-6">
+            Los usuarios con rol <strong>Público</strong> no tienen acceso al panel de administración de la liga. Redirigiendo al portal...
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-lg shadow-blue-600/30"
+          >
+            Ir al Portal Público
           </Link>
         </div>
       </div>

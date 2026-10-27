@@ -300,9 +300,9 @@ export default function LiveMatchCenterPage() {
                 </span>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-3xl font-black text-white font-scoreboard">
-                    {match.home_fouls} / 5
+                    {match.home_fouls} / {leagueSettings.max_accumulated_fouls}
                   </span>
-                  {match.home_fouls >= 5 && (
+                  {match.home_fouls >= leagueSettings.max_accumulated_fouls && (
                     <span className="text-[11px] font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-lg border border-rose-500/30 animate-pulse">
                       ¡DOBLE PENALTI ACTIVO!
                     </span>
@@ -338,9 +338,9 @@ export default function LiveMatchCenterPage() {
                 </span>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-3xl font-black text-white font-scoreboard">
-                    {match.away_fouls} / 5
+                    {match.away_fouls} / {leagueSettings.max_accumulated_fouls}
                   </span>
-                  {match.away_fouls >= 5 && (
+                  {match.away_fouls >= leagueSettings.max_accumulated_fouls && (
                     <span className="text-[11px] font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-lg border border-rose-500/30 animate-pulse">
                       ¡DOBLE PENALTI ACTIVO!
                     </span>

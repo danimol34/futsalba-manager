@@ -95,7 +95,7 @@ export const playersService = {
       document_number: player.document_number.trim(),
       jersey_number: Number(player.jersey_number),
       position: player.position,
-      photo_url: player.photo_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      photo_url: player.photo_url || null,
       status: player.status ?? true,
     };
 
@@ -159,24 +159,32 @@ export const playersService = {
   },
 
   /**
-   * Upload player photo to Supabase storage bucket 'photos'
+   * Sube la fotografía de un jugador al bucket público 'player-photos'
+   * con ruta única: players/{playerId}/{uuid}.{extension}
    */
-  async uploadPhoto(file: File): Promise<string> {
+  async uploadPhoto(playerId: string, file: File): Promise<string> {
     if (!isSupabaseConfigured) throw new Error("Supabase no está configurado");
 
-    const fileExt = file.name.split(".").pop();
-    const fileName = `player_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-    const filePath = `players/${fileName}`;
+    const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const uniqueId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const filePath = `players/${playerId}/${uniqueId}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
-      .from("photos")
-      .upload(filePath, file, { upsert: true });
+      .from("player-photos")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: file.type,
+      });
 
     if (uploadError) {
       throw uploadError;
     }
 
-    const { data } = supabase.storage.from("photos").getPublicUrl(filePath);
+    const { data } = supabase.storage.from("player-photos").getPublicUrl(filePath);
     return data.publicUrl;
   },
 };

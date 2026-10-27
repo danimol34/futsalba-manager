@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 
 export default function HomePage() {
-  const { matches, teams, standings, players } = useFutsal();
+  const { matches, teams, standings, players, isAuthenticated, currentUserRole } = useFutsal();
 
   const liveMatch = matches.find((m) => m.status === "EN_VIVO" || m.status === "DESCANSO") || matches[4];
   const homeTeam = teams.find((t) => t.id === liveMatch?.home_team_id);
@@ -114,13 +114,23 @@ export default function HomePage() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard"
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black tracking-wider uppercase shadow-lg shadow-blue-600/30 transition-all flex items-center gap-1.5"
-          >
-            <Shield className="w-3.5 h-3.5" />
-            PANEL DE GESTIÓN
-          </Link>
+          {isAuthenticated ? (
+            <Link
+              href="/mi-cuenta"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black tracking-wider uppercase border border-slate-700 shadow-md transition-all flex items-center gap-1.5"
+            >
+              <Users className="w-3.5 h-3.5 text-blue-400" />
+              MI CUENTA
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black tracking-wider uppercase shadow-lg shadow-blue-600/30 transition-all flex items-center gap-1.5"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              INICIAR SESIÓN
+            </Link>
+          )}
         </div>
       </header>
 
@@ -155,7 +165,7 @@ export default function HomePage() {
                 CLASIFICACIÓN
               </Link>
               <Link
-                href="/dashboard/estadisticas"
+                href="#estadisticas"
                 className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold border border-slate-700 transition-colors"
               >
                 ESTADÍSTICAS
@@ -376,14 +386,17 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-6">
+            <Link href="#partidos" className="hover:text-blue-400 transition-colors">
+              Partidos
+            </Link>
+            <Link href="/clasificacion" className="hover:text-blue-400 transition-colors">
+              Clasificación
+            </Link>
+            <Link href="#estadisticas" className="hover:text-blue-400 transition-colors">
+              Estadísticas
+            </Link>
             <Link href="/login" className="hover:text-blue-400 transition-colors">
               Iniciar Sesión
-            </Link>
-            <Link href="/dashboard" className="hover:text-blue-400 transition-colors">
-              Panel Administrativo
-            </Link>
-            <Link href="/dashboard/configuracion" className="hover:text-blue-400 transition-colors">
-              Configuración
             </Link>
           </div>
         </div>

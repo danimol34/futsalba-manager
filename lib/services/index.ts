@@ -5,3 +5,5 @@ export * from "./seasons";
 export * from "./competitions";
 export * from "./matchdays";
 export * from "./venues";
+export * from "./staff";
+export * from "./settings";

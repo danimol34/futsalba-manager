@@ -66,6 +66,7 @@ import {
   MatchdayUpdate,
   VenueInsert,
   VenueUpdate,
+  settingsService,
 } from "@/lib/services";
 import { liveMatchService } from "@/lib/services/liveMatch";
 
@@ -151,7 +152,8 @@ interface FutsalContextType {
   toggleLogisticsTask: (taskId: string) => void;
   updateLogisticsTask: (taskId: string, data: Partial<LogisticsTask>) => void;
   updateSanctionStatus: (sanctionId: string, status: Sanction["status"]) => void;
-  updateLeagueSettings: (settings: Partial<LeagueSettings>) => void;
+  updateLeagueSettings: (settings: Partial<LeagueSettings>) => Promise<LeagueSettings>;
+  refetchLeagueSettings?: () => Promise<void>;
   markNotificationAsRead: (id: string) => void;
   resetToDemoData: () => void;
 }
@@ -387,6 +389,18 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refetchLeagueSettings = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const data = await settingsService.getLeagueSettings();
+      if (data) {
+        setLeagueSettings(data);
+      }
+    } catch (e) {
+      console.warn("Notice: could not refetch league_settings from Supabase:", e);
+    }
+  }, []);
+
   const refetchAll = useCallback(async () => {
     if (!isSupabaseConfigured) return;
     setIsLoadingRemote(true);
@@ -399,6 +413,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         refetchCompetitions(),
         refetchMatchdays(),
         refetchVenues(),
+        refetchLeagueSettings(),
       ]);
     } finally {
       setIsLoadingRemote(false);
@@ -411,6 +426,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     refetchCompetitions,
     refetchMatchdays,
     refetchVenues,
+    refetchLeagueSettings,
   ]);
 
   // Initial load from Supabase on mount (Supabase is source of truth)
@@ -432,6 +448,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
           competitionsRes,
           matchdaysRes,
           venuesRes,
+          settingsRes,
         ] = await Promise.allSettled([
           teamsService.getTeams(),
           playersService.getPlayers(),
@@ -440,6 +457,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
           competitionsService.getCompetitions(),
           matchdaysService.getMatchdays(),
           venuesService.getVenues(),
+          settingsService.getLeagueSettings(),
         ]);
 
         if (!isMounted) return;
@@ -465,6 +483,9 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         }
         if (venuesRes.status === "fulfilled") {
           setVenues(venuesRes.value);
+        }
+        if (settingsRes.status === "fulfilled" && settingsRes.value) {
+          setLeagueSettings(settingsRes.value);
         }
       } catch (err) {
         console.warn("Notice: Initial sync error from Supabase:", err);
@@ -1192,8 +1213,15 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const updateLeagueSettings = (settings: Partial<LeagueSettings>) => {
-    setLeagueSettings((prev) => ({ ...prev, ...settings }));
+  const updateLeagueSettings = async (settings: Partial<LeagueSettings>): Promise<LeagueSettings> => {
+    if (isSupabaseConfigured) {
+      const updated = await settingsService.updateLeagueSettings(settings);
+      setLeagueSettings(updated);
+      return updated;
+    }
+    const local = { ...leagueSettings, ...settings };
+    setLeagueSettings(local);
+    return local;
   };
 
   const markNotificationAsRead = (id: string) => {
@@ -1237,6 +1265,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         refetchCompetitions,
         refetchMatchdays,
         refetchVenues,
+        refetchLeagueSettings,
 
         teams,
         players,

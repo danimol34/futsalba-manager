@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { UserRole } from "@/types";
@@ -15,6 +16,7 @@ import {
   Check,
   Terminal,
   Key,
+  UserCog,
 } from "lucide-react";
 
 export default function UsersPage() {
@@ -155,6 +157,16 @@ on conflict (user_id, role) do nothing;`;
               Matriz de control de acceso basada en roles, permisos reglamentarios y seguridad Supabase RLS.
             </p>
           </div>
+
+          {currentUserRole === "SUPER_ADMIN" && (
+            <Link
+              href="/dashboard/personal"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-lg shadow-blue-600/30"
+            >
+              <UserCog className="w-4 h-4" />
+              Gestionar Personal de la Liga
+            </Link>
+          )}
         </div>
 
         {/* Active Session & User Info */}

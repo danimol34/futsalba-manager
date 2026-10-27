@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/lib/context/ToastContext";
 import { formatSupabaseError } from "@/lib/utils/errorHandler";
 import { PlayerPosition, Player } from "@/types";
+import { playersService, PlayerInsert } from "@/lib/services/players";
 import {
   Users,
   Plus,
@@ -25,9 +26,13 @@ import {
   Loader2,
   Power,
   Shield,
+  Camera,
+  AlertCircle,
 } from "lucide-react";
 
 const POSITIONS: PlayerPosition[] = ["PORTERO", "CIERRE", "ALA", "PIVOT", "UNIVERSAL"];
+const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export default function PlayersPage() {
   const { players, teams, addPlayer, updatePlayer, deletePlayer, isLoadingRemote } = useFutsal();
@@ -39,18 +44,24 @@ export default function PlayersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingPhase, setSubmittingPhase] = useState<"idle" | "saving" | "uploading">("idle");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Form State
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [teamId, setTeamId] = useState("");
-  const [jerseyNumber, setJerseyNumber] = useState<number>(10);
+  const [jerseyNumber, setJerseyNumber] = useState<number | "">(10);
   const [position, setPosition] = useState<PlayerPosition>("ALA");
   const [documentNumber, setDocumentNumber] = useState("");
   const [birthDate, setBirthDate] = useState("2000-01-01");
-  const [photoUrl, setPhotoUrl] = useState("");
   const [status, setStatus] = useState<boolean>(true);
+
+  // Photo Upload State
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const filteredPlayers = players.filter((p) => {
     const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
@@ -75,8 +86,12 @@ export default function PlayersPage() {
     setPosition("ALA");
     setDocumentNumber("");
     setBirthDate("2000-01-01");
-    setPhotoUrl("");
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setPhotoError(null);
+    setSubmittingPhase("idle");
     setStatus(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setModalOpen(true);
   };
 
@@ -85,24 +100,64 @@ export default function PlayersPage() {
     setFirstName(player.first_name);
     setLastName(player.last_name);
     setTeamId(player.team_id);
-    setJerseyNumber(player.jersey_number);
+    setJerseyNumber(player.jersey_number ?? 0);
     setPosition(player.position);
     setDocumentNumber(player.document_number || "");
     setBirthDate(player.birth_date || "2000-01-01");
-    setPhotoUrl(player.photo_url || "");
+    setPhotoFile(null);
+    setPhotoPreview(player.photo_url || null);
+    setPhotoError(null);
+    setSubmittingPhase("idle");
     setStatus(player.status === true || player.status === "ACTIVO");
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setModalOpen(true);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
+      setPhotoError("Formato no permitido. Solo se aceptan imágenes JPG, PNG o WebP.");
+      toast.error("Formato no permitido", "Solo se admiten archivos image/jpeg, image/png o image/webp.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (file.size > MAX_PHOTO_SIZE_BYTES) {
+      setPhotoError(`La fotografía excede el tamaño máximo de 5 MB (${(file.size / (1024 * 1024)).toFixed(1)} MB).`);
+      toast.error("Archivo demasiado grande", "El tamaño máximo permitido es de 5 MB.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setPhotoError(null);
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const handleRemovePhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setPhotoError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firstName || !lastName || !teamId) {
+    if (!firstName.trim() || !lastName.trim() || !teamId) {
       toast.warning("El nombre, apellido y equipo son obligatorios.");
       return;
     }
 
-    if (jerseyNumber < 0 || jerseyNumber > 99) {
-      toast.warning("El dorsal debe estar entre 0 y 99.");
+    if (jerseyNumber === "" || isNaN(Number(jerseyNumber))) {
+      toast.warning("El dorsal de la camiseta es obligatorio.");
+      return;
+    }
+
+    const dorsalNum = Number(jerseyNumber);
+    if (!Number.isInteger(dorsalNum) || dorsalNum < 0 || dorsalNum > 99) {
+      toast.warning("El dorsal debe ser un número entero entre 0 y 99.");
       return;
     }
 
@@ -110,40 +165,72 @@ export default function PlayersPage() {
     const duplicate = players.find(
       (p) =>
         p.team_id === teamId &&
-        p.jersey_number === Number(jerseyNumber) &&
+        p.jersey_number === dorsalNum &&
         (!editingPlayer || p.id !== editingPlayer.id)
     );
 
     if (duplicate) {
       toast.error(
-        `El dorsal ${jerseyNumber} ya está utilizado por otro jugador de este equipo (${duplicate.first_name} ${duplicate.last_name}).`,
+        `El dorsal ${dorsalNum} ya está utilizado por otro jugador de este equipo (${duplicate.first_name} ${duplicate.last_name}).`,
         "Dorsal duplicado"
       );
       return;
     }
 
     setIsSubmitting(true);
+    setSubmittingPhase("saving");
+
     try {
-      const payload = {
+      const payload: PlayerInsert = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         team_id: teamId,
-        jersey_number: Number(jerseyNumber),
+        jersey_number: dorsalNum,
         position,
         document_number: documentNumber.trim() || `DOC-${Date.now().toString().slice(-6)}`,
         birth_date: birthDate || null,
-        photo_url:
-          photoUrl ||
-          "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=160&auto=format&fit=crop&q=80",
+        photo_url: photoFile ? null : (photoPreview || null),
         status: status,
       };
 
       if (editingPlayer) {
         await updatePlayer(editingPlayer.id, payload);
-        toast.success("✅ Datos actualizados");
+
+        // Si se seleccionó una nueva foto, subirla a Supabase Storage
+        if (photoFile) {
+          setSubmittingPhase("uploading");
+          try {
+            const uploadedUrl = await playersService.uploadPhoto(editingPlayer.id, photoFile);
+            await updatePlayer(editingPlayer.id, { photo_url: uploadedUrl });
+          } catch (photoErr: any) {
+            toast.warning(
+              `Datos actualizados, pero no se pudo subir la fotografía: ${photoErr?.message || "Error en Supabase Storage"}`
+            );
+          }
+        } else if (!photoPreview && editingPlayer.photo_url) {
+          // El usuario quitó la fotografía existente
+          await updatePlayer(editingPlayer.id, { photo_url: null });
+        }
+
+        toast.success("✅ Datos del jugador actualizados correctamente");
       } else {
-        await addPlayer(payload);
-        toast.success("✅ Jugador registrado");
+        // Flujo nuevo jugador: Crear primero en BD -> obtener ID -> subir fotografía -> actualizar foto
+        const created = await addPlayer(payload);
+
+        if (photoFile) {
+          setSubmittingPhase("uploading");
+          try {
+            const uploadedUrl = await playersService.uploadPhoto(created.id, photoFile);
+            await updatePlayer(created.id, { photo_url: uploadedUrl });
+            toast.success("Jugador registrado correctamente.");
+          } catch (photoErr: any) {
+            toast.warning(
+              `Jugador registrado, pero falló la subida de la fotografía: ${photoErr?.message || "Error en Storage"}`
+            );
+          }
+        } else {
+          toast.success("Jugador registrado correctamente.");
+        }
       }
 
       setModalOpen(false);
@@ -152,6 +239,7 @@ export default function PlayersPage() {
       toast.error(formatted.message, formatted.title);
     } finally {
       setIsSubmitting(false);
+      setSubmittingPhase("idle");
     }
   };
 
@@ -415,7 +503,7 @@ export default function PlayersPage() {
         {/* Modal Create / Edit */}
         {modalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 max-w-xl w-full max-h-[92vh] overflow-y-auto overflow-x-hidden shadow-2xl">
               <div className="flex items-center justify-between border-b border-slate-800 pb-4">
                 <h3 className="text-lg font-black text-white flex items-center gap-2">
                   <Users className="w-5 h-5 text-blue-500" />
@@ -489,9 +577,28 @@ export default function PlayersPage() {
                       required
                       min={0}
                       max={99}
+                      step={1}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="Ej: 10"
                       value={jerseyNumber}
-                      onChange={(e) => setJerseyNumber(Number(e.target.value))}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-mono font-bold focus:outline-none focus:border-blue-500"
+                      onKeyDown={(e) => {
+                        if ([".", ",", "e", "E", "+", "-"].includes(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "") {
+                          setJerseyNumber("");
+                          return;
+                        }
+                        const intVal = parseInt(val, 10);
+                        if (!isNaN(intVal) && intVal >= 0 && intVal <= 99) {
+                          setJerseyNumber(intVal);
+                        }
+                      }}
+                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-mono font-bold focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
                 </div>
@@ -556,20 +663,90 @@ export default function PlayersPage() {
                   </div>
                 </div>
 
+                {/* Subida real de Fotografía del Jugador */}
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                    URL de Fotografía
+                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5 flex items-center justify-between">
+                    <span>Fotografía del Jugador</span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      JPG, PNG o WebP (máx. 5 MB)
+                    </span>
                   </label>
+
                   <input
-                    type="url"
-                    placeholder="https://images.unsplash.com/photo-..."
-                    value={photoUrl}
-                    onChange={(e) => setPhotoUrl(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleFileSelect}
+                    className="hidden"
                   />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Ingresa una URL de fotografía directa o de Supabase Storage.
-                  </p>
+
+                  {photoError && (
+                    <div className="mb-2 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{photoError}</span>
+                    </div>
+                  )}
+
+                  {photoPreview ? (
+                    <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row items-center gap-3.5">
+                      <div className="relative w-20 h-20 rounded-2xl overflow-hidden border-2 border-blue-500/40 bg-slate-950 shrink-0 shadow-lg">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={photoPreview}
+                          alt="Vista previa jugador"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+
+                      <div className="flex-1 text-center sm:text-left min-w-0">
+                        <div className="text-xs font-bold text-white truncate">
+                          {photoFile ? photoFile.name : "Fotografía asignada"}
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          {photoFile
+                            ? `${(photoFile.size / 1024).toFixed(1)} KB • Lista para subir`
+                            : "Imagen del perfil del jugador"}
+                        </div>
+
+                        <div className="mt-2.5 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => fileInputRef.current?.click()}
+                            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-blue-400" />
+                            <span>Cambiar fotografía</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={handleRemovePhoto}
+                            className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Quitar fotografía</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-5 rounded-2xl border-2 border-dashed border-slate-800 hover:border-blue-500/50 bg-slate-900/40 hover:bg-slate-900 transition-all cursor-pointer text-center group"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-blue-600/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto mb-2 group-hover:scale-105 transition-transform">
+                        <Camera className="w-6 h-6" />
+                      </div>
+                      <div className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors">
+                        Seleccionar fotografía
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Haz clic para abrir tu fototeca, galería o cámara móvil
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Submit buttons */}
@@ -578,19 +755,25 @@ export default function PlayersPage() {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-50"
+                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-50 transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50 transition-all"
                   >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Guardando en Supabase...</span>
+                        <span>
+                          {submittingPhase === "uploading"
+                            ? "Subiendo fotografía..."
+                            : editingPlayer
+                            ? "Actualizando jugador..."
+                            : "Registrando jugador..."}
+                        </span>
                       </>
                     ) : (
                       <>
