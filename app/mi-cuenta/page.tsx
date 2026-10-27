@@ -4,15 +4,15 @@ import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useFutsal } from "@/lib/store/futsalStore";
+import { PublicHeader } from "@/components/layout/PublicHeader";
 import {
   User,
   Mail,
-  Shield,
   LogOut,
   ArrowLeft,
   Trophy,
   Calendar,
-  Heart,
+  Activity,
   CheckCircle,
 } from "lucide-react";
 
@@ -56,36 +56,26 @@ export default function MiCuentaPage() {
 
   return (
     <div className="min-h-screen bg-[#050914] text-white flex flex-col selection:bg-blue-600 selection:text-white">
-      {/* Top Navbar */}
-      <header className="bg-[#070d1c]/90 backdrop-blur-md border-b border-slate-800 px-4 md:px-8 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-black text-white text-lg shadow-md shadow-blue-500/20">
-            F
-          </div>
-          <div>
-            <div className="font-black text-base tracking-wider text-white flex items-center gap-1.5">
-              FUTSALBA
-              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-600 text-white">
-                OFICIAL
-              </span>
-            </div>
-            <div className="text-[9px] font-bold text-slate-400 tracking-widest uppercase">
-              Portal del Aficionado
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          href="/"
-          className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Volver a la Liga
-        </Link>
-      </header>
+      {/* Official Public Navigation Header (with responsive hamburger menu) */}
+      <PublicHeader currentPath="/mi-cuenta" />
 
       {/* Main Content */}
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-8 md:py-12 space-y-6">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8 md:py-12 space-y-6">
+        {/* Breadcrumb / Back Link */}
+        <div className="flex items-center justify-between">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 text-blue-400" />
+            Volver a la Liga
+          </Link>
+
+          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
+            FUTSALBA Oficial • Temporada 2026
+          </span>
+        </div>
+
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-2.5">
             <User className="w-7 h-7 text-blue-400" />
@@ -102,7 +92,7 @@ export default function MiCuentaPage() {
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-2xl text-white shadow-xl shadow-blue-600/30">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-2xl text-white shadow-xl shadow-blue-600/30 shrink-0">
                 {fullName.charAt(0).toUpperCase()}
               </div>
               <div>
@@ -145,27 +135,34 @@ export default function MiCuentaPage() {
           </div>
 
           {/* Quick Links & Logout */}
-          <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
+          <div className="pt-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/#partidos"
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-colors"
               >
-                <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                <Calendar className="w-3.5 h-3.5 text-emerald-400" />
                 Ver Partidos
               </Link>
               <Link
-                href="/clasificacion"
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                href="/#clasificacion"
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-colors"
               >
                 <Trophy className="w-3.5 h-3.5 text-amber-400" />
                 Clasificación
+              </Link>
+              <Link
+                href="/#estadisticas"
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-colors"
+              >
+                <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                Estadísticas
               </Link>
             </div>
 
             <button
               onClick={handleLogout}
-              className="w-full sm:w-auto px-5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+              className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
               Cerrar Sesión

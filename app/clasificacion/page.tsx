@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { StandingsTable } from "@/components/sports/StandingsTable";
+import { PublicHeader } from "@/components/layout/PublicHeader";
 import { ArrowLeft, Trophy } from "lucide-react";
 
 export default function PublicStandingsPage() {
@@ -11,18 +12,7 @@ export default function PublicStandingsPage() {
 
   return (
     <div className="min-h-screen bg-[#060b14] text-slate-100 flex flex-col">
-      <header className="sticky top-0 z-30 bg-[#080f1d]/90 backdrop-blur-md border-b border-slate-800 px-4 md:px-8 py-4 flex items-center justify-between">
-        <Link
-          href="/"
-          className="flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4 text-blue-400" />
-          Volver a la portada oficial
-        </Link>
-        <div className="text-xs font-extrabold text-blue-400 tracking-wider uppercase">
-          FUTSALBA 2026
-        </div>
-      </header>
+      <PublicHeader currentPath="/clasificacion" />
 
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-8 space-y-6">
         <div className="flex items-center gap-3">

@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/sports/StatusBadge";
 import { StandingsTable } from "@/components/sports/StandingsTable";
 import { TopScorers } from "@/components/sports/TopScorers";
 import { MatchCard } from "@/components/sports/MatchCard";
+import { PublicHeader } from "@/components/layout/PublicHeader";
 import { formatTime } from "@/lib/utils";
 import {
   Trophy,
@@ -70,61 +71,8 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Main Official Header */}
-      <header className="sticky top-0 z-40 bg-[#070d1c]/90 backdrop-blur-md border-b border-slate-800/80 px-4 md:px-8 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-blue-500/20">
-            F
-          </div>
-          <div>
-            <div className="font-black text-lg md:text-xl tracking-wider text-white flex items-center gap-1.5">
-              FUTSALBA
-              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-600 text-white">
-                OFICIAL
-              </span>
-            </div>
-            <div className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">
-              Liga Profesional de Fútbol Sala
-            </div>
-          </div>
-        </Link>
-
-        {/* Navigation links */}
-        <nav className="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-slate-300">
-          <Link href="#partidos" className="hover:text-blue-400 transition-colors">
-            Partidos
-          </Link>
-          <Link href="#clasificacion" className="hover:text-blue-400 transition-colors">
-            Clasificación
-          </Link>
-          <Link href="#estadisticas" className="hover:text-blue-400 transition-colors">
-            Estadísticas
-          </Link>
-          <Link href="#noticias" className="hover:text-blue-400 transition-colors">
-            Noticias
-          </Link>
-        </nav>
-
-        <div className="flex items-center gap-3">
-          {isAuthenticated ? (
-            <Link
-              href="/mi-cuenta"
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black tracking-wider uppercase border border-slate-700 shadow-md transition-all flex items-center gap-1.5"
-            >
-              <Users className="w-3.5 h-3.5 text-blue-400" />
-              MI CUENTA
-            </Link>
-          ) : (
-            <Link
-              href="/login"
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black tracking-wider uppercase shadow-lg shadow-blue-600/30 transition-all flex items-center gap-1.5"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              INICIAR SESIÓN
-            </Link>
-          )}
-        </div>
-      </header>
+      {/* Main Official Header with responsive hamburger menu */}
+      <PublicHeader currentPath="/" />
 
       {/* Hero Stadium Section with Featured Match */}
       <section className="relative overflow-hidden py-12 md:py-20 px-4 md:px-8 bg-gradient-to-b from-[#0a1226] via-[#060b14] to-[#050914] border-b border-slate-800">
@@ -258,7 +206,7 @@ export default function HomePage() {
       </section>
 
       {/* Main Grid Content: Matches, Standings & Top Scorers */}
-      <section id="partidos" className="max-w-6xl w-full mx-auto px-4 md:px-8 py-12 space-y-12">
+      <section id="partidos" className="scroll-mt-20 max-w-6xl w-full mx-auto px-4 md:px-8 py-12 space-y-12">
         {/* Próximos Encuentros y Últimos Resultados */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Próximos Partidos */}
@@ -300,18 +248,18 @@ export default function HomePage() {
         </div>
 
         {/* Clasificación y Goleadores */}
-        <div id="clasificacion" className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-6">
+        <div id="clasificacion" className="scroll-mt-20 grid grid-cols-1 lg:grid-cols-3 gap-8 pt-6">
           <div className="lg:col-span-2">
             <StandingsTable standings={standings} compact={false} />
           </div>
 
-          <div id="estadisticas" className="lg:col-span-1">
+          <div id="estadisticas" className="scroll-mt-20 lg:col-span-1">
             <TopScorers limit={5} />
           </div>
         </div>
 
         {/* Noticias y Novedades de la Liga (Requirement 52) */}
-        <div id="noticias" className="space-y-4 pt-6 border-t border-slate-800">
+        <div id="noticias" className="scroll-mt-20 space-y-4 pt-6 border-t border-slate-800">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-black text-white uppercase flex items-center gap-2">
               <Activity className="w-5 h-5 text-blue-400" />
@@ -387,9 +335,15 @@ export default function HomePage() {
             <Link href="#estadisticas" className="hover:text-blue-400 transition-colors">
               Estadísticas
             </Link>
-            <Link href="/login" className="hover:text-blue-400 transition-colors">
-              Iniciar Sesión
-            </Link>
+            {isAuthenticated ? (
+              <Link href="/mi-cuenta" className="hover:text-blue-400 transition-colors">
+                Mi Cuenta
+              </Link>
+            ) : (
+              <Link href="/login" className="hover:text-blue-400 transition-colors">
+                Iniciar Sesión
+              </Link>
+            )}
           </div>
         </div>
       </footer>
