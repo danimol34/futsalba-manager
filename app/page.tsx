@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 
 export default function HomePage() {
-  const { matches, teams, standings, players, isAuthenticated, currentUserRole } = useFutsal();
+  const { matches, teams, standings, players, isAuthenticated } = useFutsal();
 
   const liveMatch = matches.find((m) => m.status === "EN_VIVO" || m.status === "DESCANSO") || matches[4];
   const homeTeam = teams.find((t) => t.id === liveMatch?.home_team_id);
@@ -37,7 +37,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#050914] text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
       {/* Top Ticker Bar */}
-      <div className="bg-[#03060d] border-b border-slate-800/80 px-4 py-2 text-xs overflow-x-auto whitespace-nowrap flex items-center justify-between">
+      <div className="bg-[#03060d] border-b border-slate-800/80 px-4 py-2 text-xs overflow-x-auto whitespace-nowrap flex items-center">
         <div className="flex items-center gap-6 animate-none">
           <span className="flex items-center gap-1.5 font-black text-blue-400 uppercase tracking-widest text-[11px]">
             <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
@@ -68,14 +68,6 @@ export default function HomePage() {
             );
           })}
         </div>
-
-        <Link
-          href="/login"
-          className="hidden md:flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-blue-400 transition-colors ml-4 shrink-0"
-        >
-          <LogIn className="w-3.5 h-3.5" />
-          Acceso Oficial Mesa y Delegados
-        </Link>
       </div>
 
       {/* Main Official Header */}
