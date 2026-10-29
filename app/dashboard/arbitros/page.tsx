@@ -7,30 +7,42 @@ import { Referee } from "@/types";
 import { UserCheck, Plus, Phone, Mail, Award, CheckCircle2 } from "lucide-react";
 
 export default function RefereesPage() {
-  const { referees } = useFutsal();
+  const { referees, currentUserRole } = useFutsal();
   const [modalOpen, setModalOpen] = useState(false);
+
+  const isPrensa = currentUserRole === "PRENSA";
+  const canManage = ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR"].includes(currentUserRole);
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-              <UserCheck className="w-6 h-6 text-blue-400" />
-              CUERPO ARBITRAL Y OFICIALES DE MESA
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-2">
+                <UserCheck className="w-6 h-6 text-blue-400" />
+                CUERPO ARBITRAL Y OFICIALES DE MESA
+              </h1>
+              {isPrensa && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                  PRENSA • SOLO CONSULTA
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-400 mt-1">
               Colegio de árbitros homologados, designaciones oficiales y categorías federativas.
             </p>
           </div>
 
-          <button
-            onClick={() => setModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            REGISTRAR ÁRBITRO
-          </button>
+          {canManage && (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" />
+              REGISTRAR ÁRBITRO
+            </button>
+          )}
         </div>
 
         {/* Roles reminder banner */}
@@ -92,16 +104,22 @@ export default function RefereesPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2 text-xs text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{ref.phone}</span>
+                {!isPrensa && (ref.phone || ref.email) && (
+                  <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2 text-xs text-slate-300">
+                    {ref.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{ref.phone}</span>
+                      </div>
+                    )}
+                    {ref.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-3.5 h-3.5 text-slate-500" />
+                        <span className="truncate">{ref.email}</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="truncate">{ref.email}</span>
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="pt-3 border-t border-slate-800">

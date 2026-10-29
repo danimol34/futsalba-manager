@@ -21,7 +21,8 @@ import {
 
 export default function MatchesListPage() {
   const router = useRouter();
-  const { matches, matchdays, competitions, teams, isLoadingRemote } = useFutsal();
+  const { matches, matchdays, competitions, teams, isLoadingRemote, currentUserRole } = useFutsal();
+  const isReadOnly = currentUserRole === "PRENSA";
 
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [matchdayFilter, setMatchdayFilter] = useState<string>("ALL");
@@ -54,13 +55,15 @@ export default function MatchesListPage() {
             </p>
           </div>
 
-          <Link
-            href="/dashboard/partidos/nuevo"
-            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            PROGRAMAR PARTIDO
-          </Link>
+          {!isReadOnly && (
+            <Link
+              href="/dashboard/partidos/nuevo"
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              PROGRAMAR PARTIDO
+            </Link>
+          )}
         </div>
 
         {/* Filters bar */}

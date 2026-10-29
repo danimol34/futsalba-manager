@@ -98,7 +98,17 @@ export function formatSupabaseError(error: any): FormattedError {
     };
   }
 
-  // 5. Network / Fetch error
+  // 5. Invalid UUID syntax (PostgreSQL 22P02)
+  if (code === "22P02" || rawMsg.includes("invalid input syntax for type uuid")) {
+    return {
+      title: "Identificador inválido",
+      message: "Uno de los elementos seleccionados (equipo, temporada o competición) no tiene un identificador UUID válido en Supabase.",
+      isRlsError: false,
+      code: "22P02",
+    };
+  }
+
+  // 6. Network / Fetch error
   if (rawMsg.includes("Failed to fetch") || rawMsg.includes("NetworkError")) {
     return {
       title: "Error de conexión",

@@ -159,7 +159,7 @@ export interface Player {
   first_name: string;
   last_name: string;
   birth_date?: string | null;
-  document_number: string;
+  document_number?: string;
   jersey_number: number;
   position: PlayerPosition;
   photo_url?: string | null;
@@ -325,8 +325,26 @@ export interface Standing {
   goals_for: number;
   goals_against: number;
   goal_difference: number;
-  points: number;
+  match_points?: number; // Puntos derivados de resultados en partidos
+  points_adjustment?: number; // Ajustes administrativos acumulados (+ / -)
+  points: number; // Puntos oficiales (match_points + points_adjustment)
   form?: ("W" | "D" | "L")[];
+}
+
+export interface StandingAdjustment {
+  id: string;
+  team_id: string;
+  team_name?: string;
+  competition_id?: string | null;
+  season_id?: string | null;
+  points_delta: number;
+  reason: string;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_by_email?: string | null;
+  reverses_adjustment_id?: string | null;
+  created_at: string;
+  updated_at?: string;
 }
 
 export type SanctionStatus = "PENDIENTE" | "ACTIVA" | "CUMPLIDA" | "ANULADA";

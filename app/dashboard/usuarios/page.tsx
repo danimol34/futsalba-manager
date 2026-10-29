@@ -296,18 +296,26 @@ on conflict (user_id, role) do nothing;`;
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-slate-800">
-                  <button
-                    onClick={() => setCurrentUserRole(info.role)}
-                    className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all ${
-                      isCurrent
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                        : "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
-                    }`}
-                  >
-                    {isCurrent ? "Rol Activo Seleccionado" : `Probar vista como ${info.title}`}
-                  </button>
-                </div>
+                {process.env.NODE_ENV === "development" || userRoles.includes(info.role) ? (
+                  <div className="pt-3 border-t border-slate-800">
+                    <button
+                      onClick={() => setCurrentUserRole(info.role)}
+                      className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        isCurrent
+                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                          : "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+                      }`}
+                    >
+                      {isCurrent ? "Rol Activo Seleccionado" : `Cambiar a ${info.title}`}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="pt-3 border-t border-slate-800 text-center">
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      Rol no asignado a tu cuenta
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}

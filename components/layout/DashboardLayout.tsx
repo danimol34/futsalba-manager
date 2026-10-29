@@ -130,9 +130,19 @@ const ROLE_ALLOWED_MODULES: Record<UserRole, string[]> = {
   ],
   PRENSA: [
     "/dashboard",
+    "/dashboard/temporadas",
+    "/dashboard/competiciones",
+    "/dashboard/equipos",
+    "/dashboard/jugadores",
+    "/dashboard/calendario",
+    "/dashboard/jornadas",
     "/dashboard/partidos",
+    "/dashboard/partidos/match-301/live",
     "/dashboard/clasificacion",
     "/dashboard/estadisticas",
+    "/dashboard/sanciones",
+    "/dashboard/arbitros",
+    "/dashboard/canchas",
     "/dashboard/prensa",
   ],
   PUBLICO: [],
@@ -197,11 +207,15 @@ export function Sidebar({
     "PUBLICO",
   ];
 
-  // Si el usuario es SUPER_ADMIN o está en modo de prueba, puede alternar entre todos los roles
-  const selectableRoles =
-    currentUserRole === "SUPER_ADMIN" || userRoles.includes("SUPER_ADMIN")
-      ? allRolesList
-      : userRoles;
+  const isDevelopment = process.env.NODE_ENV === "development";
+
+  // En PRODUCCIÓN: Únicamente roles reales asociados al usuario en public.user_roles.
+  // En DESARROLLO: Permitir simulación si se requiere para pruebas.
+  const selectableRoles = isDevelopment
+    ? allRolesList
+    : (userRoles.length > 0 ? userRoles : ["PUBLICO" as UserRole]);
+
+  const canSwitchRole = selectableRoles.length > 1;
 
   return (
     <>
@@ -251,7 +265,7 @@ export function Sidebar({
           <div className="relative">
             <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center justify-between">
               <span>ROL ACTIVO</span>
-              {selectableRoles.length > 1 && (
+              {canSwitchRole && (
                 <span
                   onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
                   className="text-[10px] text-blue-400 font-semibold cursor-pointer hover:underline"
@@ -261,17 +275,20 @@ export function Sidebar({
               )}
             </div>
             <button
-              onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-blue-500/50 transition-all text-xs font-bold text-white shadow-sm"
+              disabled={!canSwitchRole}
+              onClick={() => canSwitchRole && setRoleDropdownOpen(!roleDropdownOpen)}
+              className={`w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 transition-all text-xs font-bold text-white shadow-sm ${
+                canSwitchRole ? "hover:border-blue-500/50 cursor-pointer" : "cursor-default opacity-90"
+              }`}
             >
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
                 <span className="truncate">{currentUserRole.replace("_", " ")}</span>
               </div>
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+              {canSwitchRole && <ChevronDown className="w-4 h-4 text-slate-400" />}
             </button>
 
-            {roleDropdownOpen && (
+            {canSwitchRole && roleDropdownOpen && (
               <div className="absolute top-full left-0 right-0 mt-1.5 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 z-50 max-h-60 overflow-y-auto divide-y divide-slate-800/50">
                 {selectableRoles.map((r) => (
                   <button

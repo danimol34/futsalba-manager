@@ -28,8 +28,9 @@ import {
 } from "lucide-react";
 
 export default function TeamsPage() {
-  const { teams, players, standings, addTeam, updateTeam, deleteTeam, isLoadingRemote } = useFutsal();
+  const { teams, players, standings, addTeam, updateTeam, deleteTeam, isLoadingRemote, currentUserRole } = useFutsal();
   const toast = useToast();
+  const isReadOnly = currentUserRole === "PRENSA";
 
   const [searchTerm, setSearchTerm] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
@@ -172,13 +173,15 @@ export default function TeamsPage() {
             </p>
           </div>
 
-          <button
-            onClick={openCreateModal}
-            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            NUEVO EQUIPO
-          </button>
+          {!isReadOnly && (
+            <button
+              onClick={openCreateModal}
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              NUEVO EQUIPO
+            </button>
+          )}
         </div>
 
         {/* Search Bar */}
@@ -242,34 +245,36 @@ export default function TeamsPage() {
                         />
                       </div>
 
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleToggleStatus(team)}
-                          title={isActive ? "Desactivar equipo" : "Activar equipo"}
-                          className={`p-1.5 rounded-lg border text-xs transition-colors ${
-                            isActive
-                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
-                              : "bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300"
-                          }`}
-                        >
-                          <Power className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => openEditModal(team)}
-                          title="Editar equipo"
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors border border-slate-700"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(team.id, team.name)}
-                          disabled={isDeleting}
-                          title="Eliminar equipo"
-                          className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors disabled:opacity-50"
-                        >
-                          {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
+                      {!isReadOnly && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleToggleStatus(team)}
+                            title={isActive ? "Desactivar equipo" : "Activar equipo"}
+                            className={`p-1.5 rounded-lg border text-xs transition-colors ${
+                              isActive
+                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                                : "bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300"
+                            }`}
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => openEditModal(team)}
+                            title="Editar equipo"
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors border border-slate-700"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(team.id, team.name)}
+                            disabled={isDeleting}
+                            title="Eliminar equipo"
+                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors disabled:opacity-50"
+                          >
+                            {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Team Names */}
@@ -301,7 +306,7 @@ export default function TeamsPage() {
                           </span>
                         </div>
                       )}
-                      {team.phone && (
+                      {!isReadOnly && team.phone && (
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500">Tel:</span>
                           <span className="text-slate-300 font-mono truncate max-w-[150px]">

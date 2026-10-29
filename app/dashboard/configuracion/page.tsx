@@ -17,8 +17,10 @@ import {
 } from "lucide-react";
 
 export default function ConfigurationPage() {
-  const { leagueSettings, updateLeagueSettings, resetToDemoData } = useFutsal();
+  const { leagueSettings, updateLeagueSettings, resetToDemoData, currentUserRole } = useFutsal();
   const toast = useToast();
+
+  const canConfigure = ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR"].includes(currentUserRole);
 
   const [leagueName, setLeagueName] = useState(leagueSettings.league_name);
   const [pointsForWin, setPointsForWin] = useState(leagueSettings.points_for_win);
@@ -77,6 +79,22 @@ export default function ConfigurationPage() {
       alert("Datos demo restaurados con éxito.");
     }
   };
+
+  if (!canConfigure) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-xl mx-auto py-16 text-center">
+          <div className="w-16 h-16 rounded-3xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Acceso Restringido</h2>
+          <p className="text-sm text-slate-400">
+            Tu rol actual ({currentUserRole}) no tiene privilegios para modificar los parámetros federativos ni la configuración general de la liga.
+          </p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

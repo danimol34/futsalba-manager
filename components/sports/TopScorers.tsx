@@ -7,8 +7,18 @@ import { PlayerAvatar } from "./PlayerAvatar";
 import { TeamLogo } from "./TeamLogo";
 import { Flame, Award, ChevronRight } from "lucide-react";
 
-export function TopScorers({ limit = 5 }: { limit?: number }) {
-  const { players, teams } = useFutsal();
+import { Player, Team } from "@/types";
+
+interface TopScorersProps {
+  limit?: number;
+  players?: Player[];
+  teams?: Team[];
+}
+
+export function TopScorers({ limit = 5, players: propPlayers, teams: propTeams }: TopScorersProps) {
+  const { players: storePlayers, teams: storeTeams } = useFutsal();
+  const players = propPlayers || storePlayers;
+  const teams = propTeams || storeTeams;
 
   const sortedPlayers = [...players]
     .sort((a, b) => {
@@ -18,6 +28,20 @@ export function TopScorers({ limit = 5 }: { limit?: number }) {
     })
     .slice(0, limit);
 
+
+  const scoredPlayers = sortedPlayers.filter((p) => (p.goals ?? 0) > 0);
+
+  if (scoredPlayers.length === 0) {
+    return (
+      <div className="sports-card rounded-2xl p-6 border border-slate-800 text-center">
+        <Award className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+        <h4 className="text-sm font-bold text-white mb-1">Sin goleadores registrados</h4>
+        <p className="text-xs text-slate-400">
+          Aún no se han registrado goles oficiales en los encuentros disputados.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="sports-card rounded-2xl overflow-hidden border border-slate-800">

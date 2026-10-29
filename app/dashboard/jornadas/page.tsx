@@ -11,8 +11,9 @@ import { formatSupabaseError } from "@/lib/utils/errorHandler";
 import { Layers, Plus, Calendar, Swords, ChevronRight, X, Check, Loader2 } from "lucide-react";
 
 export default function MatchdaysPage() {
-  const { matchdays, matches, competitions, createMatchday, isLoadingRemote } = useFutsal();
+  const { matchdays, matches, competitions, createMatchday, isLoadingRemote, currentUserRole } = useFutsal();
   const toast = useToast();
+  const isReadOnly = currentUserRole === "PRENSA";
 
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState(`Jornada ${matchdays.length + 1}`);
@@ -79,22 +80,24 @@ export default function MatchdaysPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={openCreateModal}
-              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              NUEVA JORNADA
-            </button>
-            <Link
-              href="/dashboard/partidos/nuevo"
-              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-2 border border-slate-700 transition-all self-start sm:self-auto"
-            >
-              <Swords className="w-4 h-4 text-blue-400" />
-              Asignar Partido
-            </Link>
-          </div>
+          {!isReadOnly && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={openCreateModal}
+                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                NUEVA JORNADA
+              </button>
+              <Link
+                href="/dashboard/partidos/nuevo"
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-2 border border-slate-700 transition-all self-start sm:self-auto"
+              >
+                <Swords className="w-4 h-4 text-blue-400" />
+                Asignar Partido
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Loading Indicator */}

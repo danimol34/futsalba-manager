@@ -23,8 +23,11 @@ import {
 } from "lucide-react";
 
 export default function VenuesPage() {
-  const { venues, createVenue, updateVenue, deleteVenue, isLoadingRemote } = useFutsal();
+  const { venues, createVenue, updateVenue, deleteVenue, isLoadingRemote, currentUserRole } = useFutsal();
   const toast = useToast();
+
+  const isPrensa = currentUserRole === "PRENSA";
+  const canManage = ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR"].includes(currentUserRole);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingVenue, setEditingVenue] = useState<Venue | null>(null);
@@ -125,22 +128,31 @@ export default function VenuesPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-              <MapPin className="w-6 h-6 text-blue-400" />
-              CANCHAS E INSTALACIONES OFICIALES
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-2">
+                <MapPin className="w-6 h-6 text-blue-400" />
+                CANCHAS E INSTALACIONES OFICIALES
+              </h1>
+              {isPrensa && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                  PRENSA • SOLO CONSULTA
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-400 mt-1">
               Polideportivos homologados, superficies reglamentarias de parquet y aforo (Supabase).
             </p>
           </div>
 
-          <button
-            onClick={openCreateModal}
-            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            NUEVA CANCHA
-          </button>
+          {canManage && (
+            <button
+              onClick={openCreateModal}
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              NUEVA CANCHA
+            </button>
+          )}
         </div>
 
         {/* Loading Indicator */}
@@ -210,37 +222,39 @@ export default function VenuesPage() {
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-800 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleStatus(venue)}
-                      title={isActive ? "Deshabilitar cancha" : "Habilitar cancha"}
-                      className={`p-2 rounded-xl border text-xs font-semibold transition-colors ${
-                        isActive
-                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
-                          : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      <Power className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(venue)}
-                      className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      Editar Cancha
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(venue.id, venue.name)}
-                      disabled={isDeleting}
-                      title="Eliminar cancha"
-                      className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors disabled:opacity-50"
-                    >
-                      {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                    </button>
-                  </div>
+                  {canManage && (
+                    <div className="pt-4 border-t border-slate-800 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(venue)}
+                        title={isActive ? "Deshabilitar cancha" : "Habilitar cancha"}
+                        className={`p-2 rounded-xl border text-xs font-semibold transition-colors ${
+                          isActive
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                            : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        <Power className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(venue)}
+                        className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        Editar Cancha
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(venue.id, venue.name)}
+                        disabled={isDeleting}
+                        title="Eliminar cancha"
+                        className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors disabled:opacity-50"
+                      >
+                        {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

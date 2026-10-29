@@ -18,9 +18,12 @@ import {
 } from "lucide-react";
 
 export default function SanctionsPage() {
-  const { sanctions, players, teams, matches, updateSanctionStatus } = useFutsal();
+  const { sanctions, players, teams, matches, updateSanctionStatus, currentUserRole } = useFutsal();
 
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+  const isPrensa = currentUserRole === "PRENSA";
+  const canAdminister = ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR"].includes(currentUserRole);
 
   const filteredSanctions = sanctions.filter(
     (s) => statusFilter === "ALL" || s.status === statusFilter
@@ -32,10 +35,17 @@ export default function SanctionsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-              <AlertOctagon className="w-6 h-6 text-rose-400" />
-              TRIBUNAL DE DISCIPLINA Y SANCIONES
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-2">
+                <AlertOctagon className="w-6 h-6 text-rose-400" />
+                TRIBUNAL DE DISCIPLINA Y SANCIONES
+              </h1>
+              {isPrensa && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                  PRENSA • SOLO CONSULTA
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-400 mt-1">
               Control de expedientes, suspensiones por tarjetas rojas, amonestaciones y fallos federativos.
             </p>
@@ -71,7 +81,7 @@ export default function SanctionsPage() {
                   <th className="py-3.5 px-2 text-center">Fechas</th>
                   <th className="py-3.5 px-3 text-center">Dictamen</th>
                   <th className="py-3.5 px-3 text-center">Estado</th>
-                  <th className="py-3.5 px-4 text-right">Revisión Administrativa</th>
+                  {canAdminister && <th className="py-3.5 px-4 text-right">Revisión Administrativa</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -109,7 +119,7 @@ export default function SanctionsPage() {
 
                       <td className="py-3 px-3 max-w-xs">
                         <div className="font-semibold text-slate-200">{s.reason}</div>
-                        {s.notes && (
+                        {!isPrensa && s.notes && (
                           <div className="text-[10px] text-slate-400 italic mt-0.5">{s.notes}</div>
                         )}
                       </td>
@@ -141,20 +151,22 @@ export default function SanctionsPage() {
                         </span>
                       </td>
 
-                      <td className="py-3 px-4 text-right">
-                        <select
-                          value={s.status}
-                          onChange={(e) =>
-                            updateSanctionStatus(s.id, e.target.value as SanctionStatus)
-                          }
-                          className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-xl p-1.5 focus:outline-none focus:border-blue-500 cursor-pointer"
-                        >
-                          <option value="ACTIVA">Mantener ACTIVA</option>
-                          <option value="CUMPLIDA">Marcar CUMPLIDA</option>
-                          <option value="PENDIENTE">En PENDIENTE</option>
-                          <option value="ANULADA">ANULAR fallo</option>
-                        </select>
-                      </td>
+                      {canAdminister && (
+                        <td className="py-3 px-4 text-right">
+                          <select
+                            value={s.status}
+                            onChange={(e) =>
+                              updateSanctionStatus(s.id, e.target.value as SanctionStatus)
+                            }
+                            className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-xl p-1.5 focus:outline-none focus:border-blue-500 cursor-pointer"
+                          >
+                            <option value="ACTIVA">Mantener ACTIVA</option>
+                            <option value="CUMPLIDA">Marcar CUMPLIDA</option>
+                            <option value="PENDIENTE">En PENDIENTE</option>
+                            <option value="ANULADA">ANULAR fallo</option>
+                          </select>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

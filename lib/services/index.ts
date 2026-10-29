@@ -7,3 +7,4 @@ export * from "./matchdays";
 export * from "./venues";
 export * from "./staff";
 export * from "./settings";
+export * from "./standingsAdjustments";

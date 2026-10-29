@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 
 export default function CalendarPage() {
-  const { matches, matchdays, venues, teams } = useFutsal();
+  const { matches, matchdays, venues, teams, currentUserRole } = useFutsal();
+  const isReadOnly = currentUserRole === "PRENSA";
 
   const [selectedView, setSelectedView] = useState<"jornada" | "mes">("jornada");
   const [selectedMatchday, setSelectedMatchday] = useState<string>("matchday-3");
@@ -40,15 +41,17 @@ export default function CalendarPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard/partidos/nuevo"
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-blue-600/30 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Nuevo Encuentro
-            </Link>
-          </div>
+          {!isReadOnly && (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/dashboard/partidos/nuevo"
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-blue-600/30 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Nuevo Encuentro
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* View Switcher & Jornada Selector */}

@@ -4,10 +4,13 @@ import React, { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useFutsal } from "@/lib/store/futsalStore";
+import { publicSportsService } from "@/lib/services/publicSports";
 import { TeamLogo } from "@/components/sports/TeamLogo";
 import { StatusBadge } from "@/components/sports/StatusBadge";
 import { MatchTimeline } from "@/components/match/MatchTimeline";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 import { formatTime } from "@/lib/utils";
+import { Match, Team, MatchEvent, Player } from "@/types";
 import {
   ArrowLeft,
   Calendar,
@@ -26,20 +29,60 @@ export default function PublicMatchPage() {
   const params = useParams();
   const matchId = params?.id as string;
 
-  const { matches, teams, venues, matchdays, matchEvents, players } = useFutsal();
+  const {
+    matches: storeMatches,
+    teams: storeTeams,
+    venues,
+    matchdays,
+    matchEvents: storeEvents,
+    players: storePlayers,
+  } = useFutsal();
 
-  const match = matches.find((m) => m.id === matchId) || matches[0];
+  const [remoteMatch, setRemoteMatch] = useState<Match | null>(null);
+  const [remoteEvents, setRemoteEvents] = useState<MatchEvent[]>([]);
+  const [remoteTeams, setRemoteTeams] = useState<Team[]>([]);
+  const [remotePlayers, setRemotePlayers] = useState<Player[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  React.useEffect(() => {
+    if (!matchId) return;
+    let isMounted = true;
+    Promise.all([
+      publicSportsService.getPublicMatchById(matchId),
+      publicSportsService.getPublicMatchEvents(matchId),
+      publicSportsService.getPublicTeams(),
+      publicSportsService.getPublicPlayers(),
+    ]).then(([m, evs, ts, pls]) => {
+      if (isMounted) {
+        if (m) setRemoteMatch(m);
+        if (evs && evs.length > 0) setRemoteEvents(evs);
+        if (ts && ts.length > 0) setRemoteTeams(ts);
+        if (pls && pls.length > 0) setRemotePlayers(pls);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, [matchId]);
+
+  const match = remoteMatch || storeMatches.find((m) => m.id === matchId) || null;
+  const teams = remoteTeams.length > 0 ? remoteTeams : storeTeams;
+  const matchEvents = remoteEvents.length > 0 ? remoteEvents : storeEvents;
+  const players = remotePlayers.length > 0 ? remotePlayers : storePlayers;
+
   const homeTeam = teams.find((t) => t.id === match?.home_team_id);
   const awayTeam = teams.find((t) => t.id === match?.away_team_id);
   const venue = venues.find((v) => v.id === match?.venue_id);
   const matchday = matchdays.find((m) => m.id === match?.matchday_id);
 
-  const [copied, setCopied] = useState(false);
-
   if (!match) {
     return (
-      <div className="min-h-screen bg-[#060b14] text-white flex items-center justify-center">
-        Partido no encontrado.
+      <div className="min-h-screen bg-[#060b14] text-white flex flex-col items-center justify-center p-6 space-y-4">
+        <p className="text-slate-400 text-sm font-semibold">Partido no encontrado o no disponible en el fixture oficial.</p>
+        <Link
+          href="/partidos"
+          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white transition-colors"
+        >
+          ← Volver a Partidos
+        </Link>
       </div>
     );
   }
@@ -72,7 +115,8 @@ export default function PublicMatchPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#060b14] text-slate-100 flex flex-col">
+    <AuthGuard fallbackMessage="Verificando acceso al detalle del partido...">
+      <div className="min-h-screen bg-[#060b14] text-slate-100 flex flex-col">
       {/* Top Navigation */}
       <header className="sticky top-0 z-30 bg-[#080f1d]/90 backdrop-blur-md border-b border-slate-800 px-4 md:px-8 py-4 flex items-center justify-between">
         <Link
@@ -341,6 +385,7 @@ export default function PublicMatchPage() {
           </div>
         </div>
       </main>
-    </div>
+      </div>
+    </AuthGuard>
   );
 }

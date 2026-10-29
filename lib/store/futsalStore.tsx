@@ -19,6 +19,7 @@ import {
   Referee,
   Matchday,
   Standing,
+  StandingAdjustment,
   Sanction,
   LogisticsTask,
   LeagueSettings,
@@ -40,6 +41,7 @@ import {
   initialMatchEvents,
   initialLogisticsTasks,
   initialSanctions,
+  initialStandingsAdjustments,
   initialLeagueSettings,
   initialNotifications,
 } from "@/lib/data/initialData";
@@ -52,6 +54,11 @@ import {
   competitionsService,
   matchdaysService,
   venuesService,
+  standingsAdjustmentsService,
+} from "@/lib/services";
+import { isUUID } from "@/lib/utils/validators";
+import { publicSportsService } from "@/lib/services/publicSports";
+import {
   TeamInsert,
   TeamUpdate,
   PlayerInsert,
@@ -156,6 +163,13 @@ interface FutsalContextType {
   refetchLeagueSettings?: () => Promise<void>;
   markNotificationAsRead: (id: string) => void;
   resetToDemoData: () => void;
+
+  // Standings Points Adjustments (Manual RBAC)
+  standingsAdjustments: StandingAdjustment[];
+  addStandingAdjustment: (adj: Omit<StandingAdjustment, "id" | "created_at">) => Promise<void>;
+  revertStandingAdjustment: (original: StandingAdjustment, reason: string) => Promise<void>;
+  deleteStandingAdjustment: (id: string) => Promise<void>;
+  refetchStandingsAdjustments: () => Promise<void>;
 }
 
 const ROLE_PRIORITY: Record<UserRole, number> = {
@@ -208,13 +222,23 @@ async function fetchUserRolesFromDB(userId: string): Promise<UserRole[]> {
 const FutsalContext = createContext<FutsalContextType | null>(null);
 
 export function FutsalProvider({ children }: { children: React.ReactNode }) {
-  const [currentUserRole, setCurrentUserRole] = useState<UserRole>("PUBLICO");
+  const [currentUserRole, setCurrentUserRoleState] = useState<UserRole>("PUBLICO");
   const [userRoles, setUserRoles] = useState<UserRole[]>(["PUBLICO"]);
   const [user, setUser] = useState<any | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isLoadingRemote, setIsLoadingRemote] = useState<boolean>(isSupabaseConfigured);
+
+  const setCurrentUserRole = useCallback((role: UserRole) => {
+    const isDevelopment = process.env.NODE_ENV === "development";
+    // En producción NUNCA se permite cambiar a un rol no asignado en user_roles
+    if (!isDevelopment && !userRoles.includes(role)) {
+      console.warn(`[Security RBAC] Intento denegado de asumir rol no autorizado: ${role}`);
+      return;
+    }
+    setCurrentUserRoleState(role);
+  }, [userRoles]);
 
   const [authRetryCount, setAuthRetryCount] = useState(0);
 
@@ -303,51 +327,105 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     };
   }, [authRetryCount]);
 
+  // Demo mode check: Only active in dev when NEXT_PUBLIC_ENABLE_DEMO_DATA === "true"
+  const isDemoMode =
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_ENABLE_DEMO_DATA === "true";
+
   // Entities
-  const [seasons, setSeasons] = useState<Season[]>([initialSeason]);
-  const [competitions, setCompetitions] = useState<Competition[]>(initialCompetitions);
-  const [venues, setVenues] = useState<Venue[]>(initialVenues);
-  const [referees, setReferees] = useState<Referee[]>(initialReferees);
-  const [teams, setTeams] = useState<Team[]>(initialTeams);
-  const [players, setPlayers] = useState<Player[]>(initialPlayers);
-  const [matchdays, setMatchdays] = useState<Matchday[]>(initialMatchdays);
-  const [matches, setMatches] = useState<Match[]>(initialMatches);
-  const [matchEvents, setMatchEvents] = useState<MatchEvent[]>(initialMatchEvents);
-  const [logisticsTasks, setLogisticsTasks] = useState<LogisticsTask[]>(initialLogisticsTasks);
-  const [sanctions, setSanctions] = useState<Sanction[]>(initialSanctions);
+  const [seasons, setSeasons] = useState<Season[]>(isDemoMode ? [initialSeason] : []);
+  const [competitions, setCompetitions] = useState<Competition[]>(isDemoMode ? initialCompetitions : []);
+  const [venues, setVenues] = useState<Venue[]>(isDemoMode ? initialVenues : []);
+  const [referees, setReferees] = useState<Referee[]>(isDemoMode ? initialReferees : []);
+  const [teams, setTeams] = useState<Team[]>(isDemoMode ? initialTeams : []);
+  const [players, setPlayers] = useState<Player[]>(isDemoMode ? initialPlayers : []);
+  const [matchdays, setMatchdays] = useState<Matchday[]>(isDemoMode ? initialMatchdays : []);
+  const [matches, setMatches] = useState<Match[]>(isDemoMode ? initialMatches : []);
+  const [matchEvents, setMatchEvents] = useState<MatchEvent[]>(isDemoMode ? initialMatchEvents : []);
+  const [logisticsTasks, setLogisticsTasks] = useState<LogisticsTask[]>(isDemoMode ? initialLogisticsTasks : []);
+  const [sanctions, setSanctions] = useState<Sanction[]>(isDemoMode ? initialSanctions : []);
+  const [standingsAdjustments, setStandingsAdjustments] = useState<StandingAdjustment[]>(
+    isDemoMode ? initialStandingsAdjustments : []
+  );
   const [leagueSettings, setLeagueSettings] = useState<LeagueSettings>(initialLeagueSettings);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   // Refetch helper methods
   const refetchTeams = useCallback(async () => {
     if (!isSupabaseConfigured) return;
     try {
-      const data = await teamsService.getTeams();
+      const isSportsAdmin = userRoles.some((r) =>
+        ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR"].includes(r)
+      );
+      // PRENSA, PUBLICO y roles de consulta usan la vista segura public_teams
+      const data = isSportsAdmin
+        ? await teamsService.getTeams()
+        : await publicSportsService.getPublicTeams();
       setTeams(data);
     } catch (e) {
-      console.warn("Notice: could not refetch teams from Supabase:", e);
+      try {
+        const fallback = await publicSportsService.getPublicTeams();
+        setTeams(fallback);
+      } catch (inner) {
+        console.warn("Notice: could not refetch teams from Supabase:", inner);
+      }
     }
-  }, []);
+  }, [userRoles]);
 
   const refetchPlayers = useCallback(async () => {
     if (!isSupabaseConfigured) return;
     try {
-      const data = await playersService.getPlayers();
+      const canReadSensitive = userRoles.some((r) =>
+        ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR", "MESA_TECNICA"].includes(r)
+      );
+      // PRENSA, PUBLICO y roles sin permiso sobre DNI usan public_players
+      const data = canReadSensitive
+        ? await playersService.getPlayers()
+        : await publicSportsService.getPublicPlayers();
       setPlayers(data);
     } catch (e) {
-      console.warn("Notice: could not refetch players from Supabase:", e);
+      try {
+        const fallback = await publicSportsService.getPublicPlayers();
+        setPlayers(fallback);
+      } catch (inner) {
+        console.warn("Notice: could not refetch players from Supabase:", inner);
+      }
     }
-  }, []);
+  }, [userRoles]);
 
   const refetchMatches = useCallback(async () => {
     if (!isSupabaseConfigured) return;
     try {
-      const data = await matchesService.getMatches();
+      const canManage = userRoles.some((r) =>
+        ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR", "MESA_TECNICA"].includes(r)
+      );
+      // PRENSA y otros roles usan public_matches sin notas de mesa
+      const data = canManage
+        ? await matchesService.getMatches()
+        : await publicSportsService.getPublicMatches();
       setMatches(data);
     } catch (e) {
-      console.warn("Notice: could not refetch matches from Supabase:", e);
+      try {
+        const fallback = await publicSportsService.getPublicMatches();
+        setMatches(fallback);
+      } catch (inner) {
+        console.warn("Notice: could not refetch matches from Supabase:", inner);
+      }
     }
-  }, []);
+  }, [userRoles]);
+
+  const refetchStandingsAdjustments = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const isPrensa = userRoles.includes("PRENSA") && !userRoles.some((r) =>
+        ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR", "MESA_TECNICA"].includes(r)
+      );
+      const data = await standingsAdjustmentsService.getAdjustments(isPrensa);
+      setStandingsAdjustments(data);
+    } catch (e) {
+      console.warn("Notice: could not refetch standings adjustments:", e);
+    }
+  }, [userRoles]);
 
   const refetchSeasons = useCallback(async () => {
     if (!isSupabaseConfigured) return;
@@ -414,6 +492,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         refetchMatchdays(),
         refetchVenues(),
         refetchLeagueSettings(),
+        refetchStandingsAdjustments(),
       ]);
     } finally {
       setIsLoadingRemote(false);
@@ -427,6 +506,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     refetchMatchdays,
     refetchVenues,
     refetchLeagueSettings,
+    refetchStandingsAdjustments,
   ]);
 
   // Initial load from Supabase on mount (Supabase is source of truth)
@@ -440,6 +520,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     async function initSupabaseData() {
       setIsLoadingRemote(true);
       try {
+        const isStaff = userRoles.some((r) => r !== "PUBLICO");
         const [
           teamsRes,
           playersRes,
@@ -450,9 +531,9 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
           venuesRes,
           settingsRes,
         ] = await Promise.allSettled([
-          teamsService.getTeams(),
-          playersService.getPlayers(),
-          matchesService.getMatches(),
+          isStaff ? teamsService.getTeams() : publicSportsService.getPublicTeams(),
+          isStaff ? playersService.getPlayers() : publicSportsService.getPublicPlayers(),
+          isStaff ? matchesService.getMatches() : publicSportsService.getPublicMatches(),
           seasonsService.getSeasons(),
           competitionsService.getCompetitions(),
           matchdaysService.getMatchdays(),
@@ -472,8 +553,10 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         if (matchesRes.status === "fulfilled") {
           setMatches(matchesRes.value);
         }
+        let loadedSeasons = seasons;
         if (seasonsRes.status === "fulfilled" && seasonsRes.value.length > 0) {
-          setSeasons(seasonsRes.value);
+          loadedSeasons = seasonsRes.value;
+          setSeasons(loadedSeasons);
         }
         if (competitionsRes.status === "fulfilled") {
           setCompetitions(competitionsRes.value);
@@ -485,7 +568,17 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
           setVenues(venuesRes.value);
         }
         if (settingsRes.status === "fulfilled" && settingsRes.value) {
-          setLeagueSettings(settingsRes.value);
+          const loadedSettings = { ...settingsRes.value };
+          // Si no tiene active_season_id con UUID válido, vincular a la temporada activa real cargada desde Supabase
+          if (!isUUID(loadedSettings.active_season_id)) {
+            const activeSeason =
+              loadedSeasons.find((s) => s.status === "ACTIVA" && isUUID(s.id)) ||
+              loadedSeasons.find((s) => isUUID(s.id));
+            if (activeSeason) {
+              loadedSettings.active_season_id = activeSeason.id;
+            }
+          }
+          setLeagueSettings(loadedSettings);
         }
       } catch (err) {
         console.warn("Notice: Initial sync error from Supabase:", err);
@@ -499,7 +592,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [userRoles]);
 
   // Supabase Realtime channel for live updates
   useEffect(() => {
@@ -616,6 +709,8 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         goals_for: 0,
         goals_against: 0,
         goal_difference: 0,
+        match_points: 0,
+        points_adjustment: 0,
         points: 0,
         form: [],
       });
@@ -636,21 +731,23 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
 
           if (match.home_score > match.away_score) {
             home.won += 1;
-            home.points += leagueSettings.points_for_win;
+            home.match_points = (home.match_points || 0) + (leagueSettings.points_for_win ?? 3);
             away.lost += 1;
+            away.match_points = (away.match_points || 0) + (leagueSettings.points_for_loss ?? 0);
             home.form?.unshift("W");
             away.form?.unshift("L");
           } else if (match.home_score === match.away_score) {
             home.drawn += 1;
-            home.points += leagueSettings.points_for_draw;
+            home.match_points = (home.match_points || 0) + (leagueSettings.points_for_draw ?? 1);
             away.drawn += 1;
-            away.points += leagueSettings.points_for_draw;
+            away.match_points = (away.match_points || 0) + (leagueSettings.points_for_draw ?? 1);
             home.form?.unshift("D");
             away.form?.unshift("D");
           } else {
             away.won += 1;
-            away.points += leagueSettings.points_for_win;
+            away.match_points = (away.match_points || 0) + (leagueSettings.points_for_win ?? 3);
             home.lost += 1;
+            home.match_points = (home.match_points || 0) + (leagueSettings.points_for_loss ?? 0);
             away.form?.unshift("W");
             home.form?.unshift("L");
           }
@@ -659,6 +756,28 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
           away.goal_difference = away.goals_for - away.goals_against;
         }
       }
+    });
+
+    // Aplicar ajustes administrativos reglamentarios
+    // Verificar que los ajustes pertenezcan a la temporada activa y no se mezclen entre distintas temporadas
+    const activeSeasonId = isUUID(leagueSettings.active_season_id)
+      ? leagueSettings.active_season_id
+      : null;
+
+    standingsAdjustments.forEach((adj) => {
+      // Si el ajuste tiene season_id y hay temporada activa, no mezclar ajustes de otras temporadas
+      if (adj.season_id && activeSeasonId && adj.season_id !== activeSeasonId) {
+        return;
+      }
+      const entry = standingsMap.get(adj.team_id);
+      if (entry) {
+        entry.points_adjustment = (entry.points_adjustment || 0) + adj.points_delta;
+      }
+    });
+
+    // Puntos oficiales = puntos obtenidos en partidos + suma de ajustes
+    standingsMap.forEach((entry) => {
+      entry.points = (entry.match_points || 0) + (entry.points_adjustment || 0);
     });
 
     const result = Array.from(standingsMap.values());
@@ -670,7 +789,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     });
 
     return result;
-  }, [teams, matches, leagueSettings]);
+  }, [teams, matches, leagueSettings, standingsAdjustments]);
 
   // Auth methods: Real Supabase Auth signInWithPassword
   const login = async (
@@ -1238,7 +1357,90 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     setVenues(initialVenues);
     setSeasons([initialSeason]);
     setCompetitions(initialCompetitions);
+    setStandingsAdjustments(initialStandingsAdjustments);
     setLeagueSettings(initialLeagueSettings);
+  };
+
+  const addStandingAdjustment = async (
+    adj: Omit<StandingAdjustment, "id" | "created_at">
+  ) => {
+    if (isSupabaseConfigured) {
+      if (!isUUID(adj.team_id)) {
+        throw new Error("El equipo seleccionado debe tener un identificador UUID válido.");
+      }
+      if (!isUUID(adj.season_id)) {
+        throw new Error("Debes seleccionar una temporada válida con UUID real antes de registrar el ajuste.");
+      }
+      if (!isUUID(adj.competition_id)) {
+        throw new Error("Debes seleccionar una competición válida con UUID real antes de registrar el ajuste.");
+      }
+
+      await standingsAdjustmentsService.createAdjustment({
+        team_id: adj.team_id,
+        competition_id: adj.competition_id,
+        season_id: adj.season_id,
+        points_delta: adj.points_delta,
+        reason: adj.reason,
+        created_by: isUUID(user?.id) ? user.id : null,
+      });
+      await refetchStandingsAdjustments();
+    } else {
+      const team = teams.find((t) => t.id === adj.team_id);
+      const newAdj: StandingAdjustment = {
+        id: `adj-${Date.now()}`,
+        team_id: adj.team_id,
+        team_name: team?.name || adj.team_name,
+        competition_id: adj.competition_id,
+        season_id: adj.season_id,
+        points_delta: adj.points_delta,
+        reason: adj.reason,
+        created_by: user?.id || "admin-local",
+        created_by_name: user?.email || "Administrador",
+        created_by_email: user?.email || "admin@futsalba.org",
+        created_at: new Date().toISOString(),
+      };
+      setStandingsAdjustments((prev) => [newAdj, ...prev]);
+    }
+  };
+
+  const revertStandingAdjustment = async (
+    original: StandingAdjustment,
+    reason: string
+  ) => {
+    if (isSupabaseConfigured) {
+      if (!isUUID(original.team_id)) {
+        throw new Error("El equipo del ajuste original no tiene un identificador UUID válido.");
+      }
+      await standingsAdjustmentsService.revertAdjustment(
+        original,
+        reason,
+        isUUID(user?.id) ? user.id : null
+      );
+      await refetchStandingsAdjustments();
+    } else {
+      const inversePoints = -original.points_delta;
+      const team = teams.find((t) => t.id === original.team_id);
+      const newAdj: StandingAdjustment = {
+        id: `adj-${Date.now()}`,
+        team_id: original.team_id,
+        team_name: team?.name || original.team_name,
+        competition_id: original.competition_id,
+        season_id: original.season_id,
+        points_delta: inversePoints,
+        reason: `Reversión: ${reason.trim()} (Ajuste ref: ${original.points_delta > 0 ? `+${original.points_delta}` : original.points_delta} pts)`,
+        created_by: user?.id || "admin-local",
+        created_by_name: user?.email || "Administrador",
+        created_by_email: user?.email || "admin@futsalba.org",
+        reverses_adjustment_id: original.id,
+        created_at: new Date().toISOString(),
+      };
+      setStandingsAdjustments((prev) => [newAdj, ...prev]);
+    }
+  };
+
+  const deleteStandingAdjustment = async (id: string) => {
+    // Nota de auditoría: delete no debe usarse en producción (usar revertStandingAdjustment)
+    setStandingsAdjustments((prev) => prev.filter((a) => a.id !== id));
   };
 
   return (
@@ -1278,6 +1480,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         matchEvents,
         logisticsTasks,
         standings,
+        standingsAdjustments,
         sanctions,
         leagueSettings,
         notifications,
@@ -1320,6 +1523,11 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         updateLeagueSettings,
         markNotificationAsRead,
         resetToDemoData,
+
+        addStandingAdjustment,
+        revertStandingAdjustment,
+        deleteStandingAdjustment,
+        refetchStandingsAdjustments,
       }}
     >
       {children}

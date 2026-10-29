@@ -9,9 +9,28 @@ import { Trophy, ChevronRight } from "lucide-react";
 interface StandingsTableProps {
   standings: Standing[];
   compact?: boolean;
+  showBreakdown?: boolean;
+  isPublic?: boolean;
 }
 
-export function StandingsTable({ standings, compact = false }: StandingsTableProps) {
+export function StandingsTable({
+  standings,
+  compact = false,
+  showBreakdown = false,
+  isPublic = false,
+}: StandingsTableProps) {
+  if (!standings || standings.length === 0) {
+    return (
+      <div className="sports-card rounded-2xl p-8 border border-slate-800 text-center">
+        <Trophy className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+        <h4 className="text-sm font-bold text-white mb-1">Sin datos de clasificación</h4>
+        <p className="text-xs text-slate-400">
+          No hay registros de partidos oficiales finalizados para calcular la tabla.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="sports-card rounded-2xl overflow-hidden border border-slate-800">
       <div className="p-4 border-b border-slate-800/80 flex items-center justify-between">
@@ -60,8 +79,27 @@ export function StandingsTable({ standings, compact = false }: StandingsTablePro
                   </th>
                 </>
               )}
-              <th className="py-3 px-3 text-center font-bold text-white bg-blue-900/20" title="Puntos">
-                PTS
+              {showBreakdown && (
+                <>
+                  <th
+                    className="py-3 px-2 text-center font-bold text-slate-300 bg-slate-800/40"
+                    title="Puntos obtenidos exclusivamente en partidos"
+                  >
+                    Pts Par.
+                  </th>
+                  <th
+                    className="py-3 px-2 text-center font-bold text-amber-300 bg-amber-500/10"
+                    title="Ajustes administrativos reglamentarios (+/-)"
+                  >
+                    Ajuste
+                  </th>
+                </>
+              )}
+              <th
+                className="py-3 px-3 text-center font-black text-white bg-blue-900/30"
+                title="Puntos oficiales reglamentarios = Partidos + Ajustes"
+              >
+                {showBreakdown ? "PTS OFICIAL" : "PTS"}
               </th>
             </tr>
           </thead>
@@ -69,6 +107,15 @@ export function StandingsTable({ standings, compact = false }: StandingsTablePro
             {standings.map((team, index) => {
               const isFirst = index === 0;
               const isPlayoff = index < 2;
+              const teamLink = isPublic
+                ? `/equipos/${team.team_id}`
+                : `/dashboard/equipos/${team.team_id}`;
+
+              const matchPts =
+                team.match_points !== undefined
+                  ? team.match_points
+                  : team.points - (team.points_adjustment || 0);
+              const adjPts = team.points_adjustment || 0;
 
               return (
                 <tr
@@ -93,7 +140,7 @@ export function StandingsTable({ standings, compact = false }: StandingsTablePro
 
                   <td className="py-3 px-3">
                     <Link
-                      href={`/dashboard/equipos/${team.team_id}`}
+                      href={teamLink}
                       className="flex items-center gap-2.5 font-bold text-white hover:text-blue-400 transition-colors group"
                     >
                       <TeamLogo
@@ -102,9 +149,17 @@ export function StandingsTable({ standings, compact = false }: StandingsTablePro
                         logoUrl={team.logo_url}
                         size="sm"
                       />
-                      <span className="truncate max-w-[130px] sm:max-w-none">
-                        {team.team_name}
-                      </span>
+                      <div>
+                        <span className="truncate max-w-[130px] sm:max-w-none block">
+                          {team.team_name}
+                        </span>
+                        {/* Indicación discreta de ajuste para aficionado o tabla compacta */}
+                        {adjPts !== 0 && !showBreakdown && (
+                          <span className="text-[10px] text-amber-400/90 font-medium block">
+                            Ajuste reglamentario: {adjPts > 0 ? `+${adjPts}` : adjPts} pts
+                          </span>
+                        )}
+                      </div>
                     </Link>
                   </td>
 
@@ -155,7 +210,24 @@ export function StandingsTable({ standings, compact = false }: StandingsTablePro
                     </>
                   )}
 
-                  <td className="py-3 px-3 text-center font-black text-sm text-white bg-blue-900/20">
+                  {showBreakdown && (
+                    <>
+                      <td className="py-3 px-2 text-center font-mono font-semibold text-slate-300 bg-slate-800/20">
+                        {matchPts}
+                      </td>
+                      <td className="py-3 px-2 text-center font-mono font-bold bg-amber-500/5">
+                        {adjPts > 0 ? (
+                          <span className="text-emerald-400">+{adjPts}</span>
+                        ) : adjPts < 0 ? (
+                          <span className="text-rose-400">{adjPts}</span>
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </td>
+                    </>
+                  )}
+
+                  <td className="py-3 px-3 text-center font-black text-sm text-white bg-blue-900/30">
                     {team.points}
                   </td>
                 </tr>
@@ -189,3 +261,4 @@ export function StandingsTable({ standings, compact = false }: StandingsTablePro
     </div>
   );
 }
+

@@ -43,7 +43,10 @@ export default function LiveMatchCenterPage() {
     adjustTimeouts,
     changeMatchPeriod,
     changeMatchStatus,
+    currentUserRole,
   } = useFutsal();
+
+  const isReadOnly = currentUserRole === "PRENSA";
 
   const match = matches.find((m) => m.id === matchId) || matches[0];
   const homeTeam = teams.find((t) => t.id === match?.home_team_id);
@@ -118,12 +121,18 @@ export default function LiveMatchCenterPage() {
             <div>
               <h1 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
                 CENTRO DE PARTIDO EN VIVO
-                <span className="text-xs font-black uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  MESA TÉCNICA
-                </span>
+                {isReadOnly ? (
+                  <span className="text-xs font-black uppercase px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                    COBERTURA DE PRENSA • SOLO LECTURA
+                  </span>
+                ) : (
+                  <span className="text-xs font-black uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    MESA TÉCNICA
+                  </span>
+                )}
               </h1>
               <p className="text-xs text-slate-400">
-                {venue?.name} • Control oficial de cronómetro, faltas y acontecimientos
+                {venue?.name} • {isReadOnly ? "Seguimiento en directo para cobertura periodística y medios" : "Control oficial de cronómetro, faltas y acontecimientos"}
               </p>
             </div>
           </div>
@@ -138,13 +147,15 @@ export default function LiveMatchCenterPage() {
               Acta Oficial
             </Link>
 
-            <Link
-              href={`/dashboard/partidos/${match.id}/logistica`}
-              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-            >
-              <ClipboardList className="w-4 h-4 text-blue-400" />
-              Logística
-            </Link>
+            {!isReadOnly && (
+              <Link
+                href={`/dashboard/partidos/${match.id}/logistica`}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <ClipboardList className="w-4 h-4 text-blue-400" />
+                Logística
+              </Link>
+            )}
 
             <Link
               href={`/tv/${match.id}`}
@@ -175,12 +186,13 @@ export default function LiveMatchCenterPage() {
                 (p) => (
                   <button
                     key={p}
-                    onClick={() => changeMatchPeriod(match.id, p)}
+                    disabled={isReadOnly}
+                    onClick={() => !isReadOnly && changeMatchPeriod(match.id, p)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-extrabold uppercase transition-all ${
                       match.period === p
                         ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
                         : "bg-slate-800 text-slate-400 hover:text-white"
-                    }`}
+                    } ${isReadOnly ? "cursor-default opacity-90" : ""}`}
                   >
                     {p.replace("_", " ")}
                   </button>
@@ -212,12 +224,14 @@ export default function LiveMatchCenterPage() {
                     }`}
                     title={match.home_timeouts >= 1 ? "Utilizado" : "Disponible"}
                   />
-                  <button
-                    onClick={() => adjustTimeouts(match.id, "home", match.home_timeouts >= 1 ? -1 : 1)}
-                    className="text-[10px] text-blue-400 hover:underline ml-1"
-                  >
-                    {match.home_timeouts >= 1 ? "Liberar" : "Gastar"}
-                  </button>
+                  {!isReadOnly && (
+                    <button
+                      onClick={() => adjustTimeouts(match.id, "home", match.home_timeouts >= 1 ? -1 : 1)}
+                      className="text-[10px] text-blue-400 hover:underline ml-1"
+                    >
+                      {match.home_timeouts >= 1 ? "Liberar" : "Gastar"}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -279,12 +293,14 @@ export default function LiveMatchCenterPage() {
                     }`}
                     title={match.away_timeouts >= 1 ? "Utilizado" : "Disponible"}
                   />
-                  <button
-                    onClick={() => adjustTimeouts(match.id, "away", match.away_timeouts >= 1 ? -1 : 1)}
-                    className="text-[10px] text-blue-400 hover:underline ml-1"
-                  >
-                    {match.away_timeouts >= 1 ? "Liberar" : "Gastar"}
-                  </button>
+                  {!isReadOnly && (
+                    <button
+                      onClick={() => adjustTimeouts(match.id, "away", match.away_timeouts >= 1 ? -1 : 1)}
+                      className="text-[10px] text-blue-400 hover:underline ml-1"
+                    >
+                      {match.away_timeouts >= 1 ? "Liberar" : "Gastar"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -310,24 +326,26 @@ export default function LiveMatchCenterPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => adjustFouls(match.id, "home", -1)}
-                  className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-colors"
-                  title="Restar falta (corrección)"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => adjustFouls(match.id, "home", 1)}
-                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-600/30 transition-all"
-                >
-                  <Plus className="w-4 h-4" />
-                  + FALTA LOCAL
-                </button>
-              </div>
+              {!isReadOnly && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => adjustFouls(match.id, "home", -1)}
+                    className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-colors"
+                    title="Restar falta (corrección)"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => adjustFouls(match.id, "home", 1)}
+                    className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-600/30 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    + FALTA LOCAL
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Away Fouls */}
@@ -348,223 +366,245 @@ export default function LiveMatchCenterPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => adjustFouls(match.id, "away", -1)}
-                  className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-colors"
-                  title="Restar falta (corrección)"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => adjustFouls(match.id, "away", 1)}
-                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-600/30 transition-all"
-                >
-                  <Plus className="w-4 h-4" />
-                  + FALTA VISITANTE
-                </button>
-              </div>
+              {!isReadOnly && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => adjustFouls(match.id, "away", -1)}
+                    className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-colors"
+                    title="Restar falta (corrección)"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => adjustFouls(match.id, "away", 1)}
+                    className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-600/30 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    + FALTA VISITANTE
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Clock Operations Buttons (Big, touch-friendly) */}
-          <div className="mt-6 pt-6 border-t border-slate-800 flex flex-wrap items-center justify-center gap-3">
-            <button
-              onClick={handleToggleTimer}
-              className={`px-8 py-3.5 rounded-2xl text-sm font-black tracking-wider flex items-center gap-2.5 shadow-xl transition-all ${
-                match.is_clock_running
-                  ? "bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20"
-                  : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
-              }`}
-            >
-              {match.is_clock_running ? (
-                <>
-                  <Pause className="w-5 h-5 fill-current" />
-                  PAUSAR CRONÓMETRO
-                </>
-              ) : (
-                <>
-                  <Play className="w-5 h-5 fill-current" />
-                  INICIAR / REANUDAR
-                </>
-              )}
-            </button>
+          {/* Clock Operations Buttons / ReadOnly Banner */}
+          {isReadOnly ? (
+            <div className="mt-6 pt-6 border-t border-slate-800 flex items-center justify-center gap-2 text-xs text-slate-400 py-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-ping inline-block mr-1" />
+              <span className="font-semibold text-slate-300">Modo Cobertura de Prensa:</span> Cronómetro y actas controlados exclusivamente por la Mesa Técnica Oficial.
+            </div>
+          ) : (
+            <div className="mt-6 pt-6 border-t border-slate-800 flex flex-wrap items-center justify-center gap-3">
+              <button
+                onClick={handleToggleTimer}
+                className={`px-8 py-3.5 rounded-2xl text-sm font-black tracking-wider flex items-center gap-2.5 shadow-xl transition-all ${
+                  match.is_clock_running
+                    ? "bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20"
+                    : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
+                }`}
+              >
+                {match.is_clock_running ? (
+                  <>
+                    <Pause className="w-5 h-5 fill-current" />
+                    PAUSAR CRONÓMETRO
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-5 h-5 fill-current" />
+                    INICIAR / REANUDAR
+                  </>
+                )}
+              </button>
 
-            <button
-              onClick={handleAdvancePeriod}
-              className="px-6 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold flex items-center gap-2 border border-slate-700 transition-colors"
-            >
-              <FastForward className="w-4 h-4 text-blue-400" />
-              AVANZAR PERIODO
-            </button>
+              <button
+                onClick={handleAdvancePeriod}
+                className="px-6 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold flex items-center gap-2 border border-slate-700 transition-colors"
+              >
+                <FastForward className="w-4 h-4 text-blue-400" />
+                AVANZAR PERIODO
+              </button>
 
-            <button
-              onClick={handleResetTimer}
-              className="px-4 py-3.5 rounded-2xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
-              title="Reiniciar a 20 minutos"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reiniciar Tiempo
-            </button>
+              <button
+                onClick={handleResetTimer}
+                className="px-4 py-3.5 rounded-2xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                title="Reiniciar a 20 minutos"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Reiniciar Tiempo
+              </button>
 
-            <button
-              onClick={() => {
-                changeMatchStatus(match.id, "FINALIZADO");
-                changeMatchPeriod(match.id, "FINALIZADO");
-              }}
-              className="px-6 py-3.5 rounded-2xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-xs font-bold flex items-center gap-1.5 border border-rose-500/30 transition-all"
-            >
-              <Flag className="w-4 h-4" />
-              FINALIZAR PARTIDO
-            </button>
-          </div>
+              <button
+                onClick={() => {
+                  changeMatchStatus(match.id, "FINALIZADO");
+                  changeMatchPeriod(match.id, "FINALIZADO");
+                }}
+                className="px-6 py-3.5 rounded-2xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-xs font-bold flex items-center gap-1.5 border border-rose-500/30 transition-all"
+              >
+                <Flag className="w-4 h-4" />
+                FINALIZAR PARTIDO
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Event Buttons & Timeline Split View */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Action Buttons Grid (Requirements 19) */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="sports-card rounded-3xl p-6 border border-slate-800">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                <h3 className="font-extrabold text-base text-white tracking-tight flex items-center gap-2">
-                  <Flame className="w-5 h-5 text-amber-500" />
-                  PANEL DE ACONTECIMIENTOS Y ACCIONES RÁPIDAS
-                </h3>
-                <span className="text-xs text-slate-400">Tocar para registrar</span>
-              </div>
+        {isReadOnly ? (
+          <div className="sports-card rounded-3xl p-6 border border-slate-800">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-6">
+              <h3 className="font-extrabold text-base text-white tracking-tight flex items-center gap-2">
+                <Flame className="w-5 h-5 text-blue-400" />
+                Línea de Tiempo y Cobertura Minuto a Minuto
+              </h3>
+              <span className="text-xs text-slate-400">Actualización en tiempo real • Solo lectura</span>
+            </div>
+            <MatchTimeline matchId={match.id} allowDelete={false} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main Action Buttons Grid (Requirements 19) */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="sports-card rounded-3xl p-6 border border-slate-800">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                  <h3 className="font-extrabold text-base text-white tracking-tight flex items-center gap-2">
+                    <Flame className="w-5 h-5 text-amber-500" />
+                    PANEL DE ACONTECIMIENTOS Y ACCIONES RÁPIDAS
+                  </h3>
+                  <span className="text-xs text-slate-400">Tocar para registrar</span>
+                </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
-                {/* GOL */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenEvent("goal")}
-                  className="p-4 rounded-2xl bg-gradient-to-br from-emerald-600/30 to-emerald-800/30 border border-emerald-500/50 hover:border-emerald-400 hover:scale-105 active:scale-95 transition-all text-center group shadow-lg shadow-emerald-950/40"
-                >
-                  <div className="text-3xl group-hover:scale-110 transition-transform">⚽</div>
-                  <div className="mt-2 text-sm font-black text-white">GOL</div>
-                  <div className="text-[10px] text-emerald-400">+1 en marcador</div>
-                </button>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
+                  {/* GOL */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvent("goal")}
+                    className="p-4 rounded-2xl bg-gradient-to-br from-emerald-600/30 to-emerald-800/30 border border-emerald-500/50 hover:border-emerald-400 hover:scale-105 active:scale-95 transition-all text-center group shadow-lg shadow-emerald-950/40"
+                  >
+                    <div className="text-3xl group-hover:scale-110 transition-transform">⚽</div>
+                    <div className="mt-2 text-sm font-black text-white">GOL</div>
+                    <div className="text-[10px] text-emerald-400">+1 en marcador</div>
+                  </button>
 
-                {/* ASISTENCIA */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenEvent("assist")}
-                  className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-blue-500 hover:scale-105 active:scale-95 transition-all text-center group"
-                >
-                  <div className="text-3xl group-hover:scale-110 transition-transform">👟</div>
-                  <div className="mt-2 text-sm font-black text-white">ASISTENCIA</div>
-                  <div className="text-[10px] text-slate-400">Pase clave</div>
-                </button>
+                  {/* ASISTENCIA */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvent("assist")}
+                    className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-blue-500 hover:scale-105 active:scale-95 transition-all text-center group"
+                  >
+                    <div className="text-3xl group-hover:scale-110 transition-transform">👟</div>
+                    <div className="mt-2 text-sm font-black text-white">ASISTENCIA</div>
+                    <div className="text-[10px] text-slate-400">Pase clave</div>
+                  </button>
 
-                {/* TARJETA AMARILLA */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenEvent("yellow_card")}
-                  className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 hover:border-amber-400 hover:scale-105 active:scale-95 transition-all text-center group"
-                >
-                  <div className="text-3xl group-hover:scale-110 transition-transform">🟨</div>
-                  <div className="mt-2 text-sm font-black text-white">AMARILLA</div>
-                  <div className="text-[10px] text-amber-400">Amonestación</div>
-                </button>
+                  {/* TARJETA AMARILLA */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvent("yellow_card")}
+                    className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 hover:border-amber-400 hover:scale-105 active:scale-95 transition-all text-center group"
+                  >
+                    <div className="text-3xl group-hover:scale-110 transition-transform">🟨</div>
+                    <div className="mt-2 text-sm font-black text-white">AMARILLA</div>
+                    <div className="text-[10px] text-amber-400">Amonestación</div>
+                  </button>
 
-                {/* TARJETA ROJA */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenEvent("red_card")}
-                  className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 hover:border-rose-400 hover:scale-105 active:scale-95 transition-all text-center group shadow-lg shadow-rose-950/40"
-                >
-                  <div className="text-3xl group-hover:scale-110 transition-transform">🟥</div>
-                  <div className="mt-2 text-sm font-black text-white">TARJETA ROJA</div>
-                  <div className="text-[10px] text-rose-400">Expulsión directa</div>
-                </button>
+                  {/* TARJETA ROJA */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvent("red_card")}
+                    className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 hover:border-rose-400 hover:scale-105 active:scale-95 transition-all text-center group shadow-lg shadow-rose-950/40"
+                  >
+                    <div className="text-3xl group-hover:scale-110 transition-transform">🟥</div>
+                    <div className="mt-2 text-sm font-black text-white">TARJETA ROJA</div>
+                    <div className="text-[10px] text-rose-400">Expulsión directa</div>
+                  </button>
 
-                {/* FALTA */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenEvent("foul")}
-                  className="p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 hover:border-orange-400 hover:scale-105 active:scale-95 transition-all text-center group"
-                >
-                  <div className="text-3xl group-hover:scale-110 transition-transform">⚠️</div>
-                  <div className="mt-2 text-sm font-black text-white">FALTA</div>
-                  <div className="text-[10px] text-orange-400">Infracción</div>
-                </button>
+                  {/* FALTA */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvent("foul")}
+                    className="p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 hover:border-orange-400 hover:scale-105 active:scale-95 transition-all text-center group"
+                  >
+                    <div className="text-3xl group-hover:scale-110 transition-transform">⚠️</div>
+                    <div className="mt-2 text-sm font-black text-white">FALTA</div>
+                    <div className="text-[10px] text-orange-400">Infracción</div>
+                  </button>
 
-                {/* PENALTI */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenEvent("penalty")}
-                  className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 hover:border-purple-400 hover:scale-105 active:scale-95 transition-all text-center group"
-                >
-                  <div className="text-3xl group-hover:scale-110 transition-transform">🎯</div>
-                  <div className="mt-2 text-sm font-black text-white">PENALTI</div>
-                  <div className="text-[10px] text-purple-400">Desde 6 metros</div>
-                </button>
+                  {/* PENALTI */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvent("penalty")}
+                    className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 hover:border-purple-400 hover:scale-105 active:scale-95 transition-all text-center group"
+                  >
+                    <div className="text-3xl group-hover:scale-110 transition-transform">🎯</div>
+                    <div className="mt-2 text-sm font-black text-white">PENALTI</div>
+                    <div className="text-[10px] text-purple-400">Desde 6 metros</div>
+                  </button>
 
-                {/* DOBLE PENALTI */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenEvent("double_penalty")}
-                  className="p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/30 hover:border-yellow-400 hover:scale-105 active:scale-95 transition-all text-center group"
-                >
-                  <div className="text-3xl group-hover:scale-110 transition-transform">⚡</div>
-                  <div className="mt-2 text-sm font-black text-white">DOBLE PENALTI</div>
-                  <div className="text-[10px] text-yellow-400">Tiro libre 10m</div>
-                </button>
+                  {/* DOBLE PENALTI */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvent("double_penalty")}
+                    className="p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/30 hover:border-yellow-400 hover:scale-105 active:scale-95 transition-all text-center group"
+                  >
+                    <div className="text-3xl group-hover:scale-110 transition-transform">⚡</div>
+                    <div className="mt-2 text-sm font-black text-white">DOBLE PENALTI</div>
+                    <div className="text-[10px] text-yellow-400">Tiro libre 10m</div>
+                  </button>
 
-                {/* CAMBIO */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenEvent("substitution")}
-                  className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-400 hover:scale-105 active:scale-95 transition-all text-center group"
-                >
-                  <div className="text-3xl group-hover:scale-110 transition-transform">🔄</div>
-                  <div className="mt-2 text-sm font-black text-white">CAMBIO</div>
-                  <div className="text-[10px] text-cyan-400">Sustitución</div>
-                </button>
+                  {/* CAMBIO */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvent("substitution")}
+                    className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-400 hover:scale-105 active:scale-95 transition-all text-center group"
+                  >
+                    <div className="text-3xl group-hover:scale-110 transition-transform">🔄</div>
+                    <div className="mt-2 text-sm font-black text-white">CAMBIO</div>
+                    <div className="text-[10px] text-cyan-400">Sustitución</div>
+                  </button>
 
-                {/* TIEMPO MUERTO */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenEvent("timeout")}
-                  className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-400 hover:scale-105 active:scale-95 transition-all text-center group"
-                >
-                  <div className="text-3xl group-hover:scale-110 transition-transform">⏱️</div>
-                  <div className="mt-2 text-sm font-black text-white">TIEMPO MUERTO</div>
-                  <div className="text-[10px] text-indigo-400">1 min de receso</div>
-                </button>
+                  {/* TIEMPO MUERTO */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvent("timeout")}
+                    className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-400 hover:scale-105 active:scale-95 transition-all text-center group"
+                  >
+                    <div className="text-3xl group-hover:scale-110 transition-transform">⏱️</div>
+                    <div className="mt-2 text-sm font-black text-white">TIEMPO MUERTO</div>
+                    <div className="text-[10px] text-indigo-400">1 min de receso</div>
+                  </button>
 
-                {/* LESIÓN */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenEvent("injury")}
-                  className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 hover:border-rose-400 hover:scale-105 active:scale-95 transition-all text-center group"
-                >
-                  <div className="text-3xl group-hover:scale-110 transition-transform">🩹</div>
-                  <div className="mt-2 text-sm font-black text-white">LESIÓN</div>
-                  <div className="text-[10px] text-rose-400">Atención médica</div>
-                </button>
+                  {/* LESIÓN */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvent("injury")}
+                    className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 hover:border-rose-400 hover:scale-105 active:scale-95 transition-all text-center group"
+                  >
+                    <div className="text-3xl group-hover:scale-110 transition-transform">🩹</div>
+                    <div className="mt-2 text-sm font-black text-white">LESIÓN</div>
+                    <div className="text-[10px] text-rose-400">Atención médica</div>
+                  </button>
 
-                {/* NOTA */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenEvent("note")}
-                  className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-slate-500 hover:scale-105 active:scale-95 transition-all text-center group"
-                >
-                  <div className="text-3xl group-hover:scale-110 transition-transform">📝</div>
-                  <div className="mt-2 text-sm font-black text-white">NOTA</div>
-                  <div className="text-[10px] text-slate-400">Incidencia arbitral</div>
-                </button>
+                  {/* NOTA */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvent("note")}
+                    className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 hover:border-slate-500 hover:scale-105 active:scale-95 transition-all text-center group"
+                  >
+                    <div className="text-3xl group-hover:scale-110 transition-transform">📝</div>
+                    <div className="mt-2 text-sm font-black text-white">NOTA</div>
+                    <div className="text-[10px] text-slate-400">Incidencia arbitral</div>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Timeline Column */}
-          <div className="lg:col-span-1">
-            <MatchTimeline matchId={match.id} allowDelete={true} />
+            {/* Timeline Column */}
+            <div className="lg:col-span-1">
+              <MatchTimeline matchId={match.id} allowDelete={true} />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Interactive Modal for Events */}

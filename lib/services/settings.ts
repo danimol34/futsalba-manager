@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { LeagueSettings } from "@/types";
 import { initialLeagueSettings } from "@/lib/data/initialData";
+import { isUUID } from "@/lib/utils/validators";
 
 /**
  * Mapea una fila de public.league_settings de Supabase al objeto LeagueSettings
@@ -14,10 +15,14 @@ export function mapDbToLeagueSettings(
   if (!row) return fallback;
 
   const pointsWin = row.points_win ?? row.points_for_win ?? fallback.points_for_win;
-  const pointsDraw = row.points_draw ?? row.points_for_draw ?? fallback.points_for_draw;
+  const pointsDraw = row.points_draw ?? row.points_draw ?? fallback.points_for_draw;
   const pointsLoss = row.points_loss ?? row.points_for_loss ?? fallback.points_for_loss;
   const periodDuration = row.period_duration_minutes ?? fallback.period_duration_minutes;
   const maxFouls = row.max_fouls_per_period ?? row.max_accumulated_fouls ?? fallback.max_accumulated_fouls;
+
+  // En producción jamás utilizar IDs demo como "season-2026" para Supabase
+  const rawSeasonId = row.active_season_id ?? fallback.active_season_id;
+  const validSeasonId = isUUID(rawSeasonId) ? rawSeasonId : undefined;
 
   return {
     id: row.id,
@@ -25,7 +30,7 @@ export function mapDbToLeagueSettings(
     logo_url: row.logo_url ?? fallback.logo_url,
     primary_color: row.primary_color ?? fallback.primary_color,
     secondary_color: row.secondary_color ?? fallback.secondary_color,
-    active_season_id: row.active_season_id ?? fallback.active_season_id,
+    active_season_id: validSeasonId,
     points_for_win: pointsWin,
     points_for_draw: pointsDraw,
     points_for_loss: pointsLoss,

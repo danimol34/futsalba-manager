@@ -21,8 +21,9 @@ import {
 } from "lucide-react";
 
 export default function CompetitionsPage() {
-  const { competitions, seasons, createCompetition, updateCompetition, isLoadingRemote } = useFutsal();
+  const { competitions, seasons, createCompetition, updateCompetition, isLoadingRemote, currentUserRole } = useFutsal();
   const toast = useToast();
+  const isReadOnly = currentUserRole === "PRENSA";
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingComp, setEditingComp] = useState<Competition | null>(null);
@@ -128,13 +129,15 @@ export default function CompetitionsPage() {
             </p>
           </div>
 
-          <button
-            onClick={openCreateModal}
-            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            NUEVA COMPETICIÓN
-          </button>
+          {!isReadOnly && (
+            <button
+              onClick={openCreateModal}
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              NUEVA COMPETICIÓN
+            </button>
+          )}
         </div>
 
         {/* Loading Indicator */}
@@ -218,28 +221,30 @@ export default function CompetitionsPage() {
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleStatus(comp)}
-                      title={isActive ? "Desactivar" : "Activar"}
-                      className={`p-2 rounded-xl border text-xs font-semibold transition-colors ${
-                        isActive
-                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
-                          : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      <Power className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(comp)}
-                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      Modificar Torneo
-                    </button>
-                  </div>
+                  {!isReadOnly && (
+                    <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(comp)}
+                        title={isActive ? "Desactivar" : "Activar"}
+                        className={`p-2 rounded-xl border text-xs font-semibold transition-colors ${
+                          isActive
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                            : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        <Power className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(comp)}
+                        className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        Modificar Torneo
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

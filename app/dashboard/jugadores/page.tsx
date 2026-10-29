@@ -35,8 +35,9 @@ const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export default function PlayersPage() {
-  const { players, teams, addPlayer, updatePlayer, deletePlayer, isLoadingRemote } = useFutsal();
+  const { players, teams, addPlayer, updatePlayer, deletePlayer, isLoadingRemote, currentUserRole } = useFutsal();
   const toast = useToast();
+  const isReadOnly = currentUserRole === "PRENSA";
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
@@ -284,13 +285,15 @@ export default function PlayersPage() {
             </p>
           </div>
 
-          <button
-            onClick={openCreateModal}
-            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            NUEVO JUGADOR
-          </button>
+          {!isReadOnly && (
+            <button
+              onClick={openCreateModal}
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              NUEVO JUGADOR
+            </button>
+          )}
         </div>
 
         {/* Filters and Search Bar */}
@@ -403,34 +406,36 @@ export default function PlayersPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleToggleStatus(player)}
-                          title={isActive ? "Desactivar jugador" : "Activar jugador"}
-                          className={`p-1.5 rounded-lg border text-xs transition-colors ${
-                            isActive
-                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
-                              : "bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300"
-                          }`}
-                        >
-                          <Power className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => openEditModal(player)}
-                          title="Editar jugador"
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors border border-slate-700"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(player.id, `${player.first_name} ${player.last_name}`)}
-                          disabled={isDeleting}
-                          title="Eliminar jugador"
-                          className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors disabled:opacity-50"
-                        >
-                          {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
+                      {!isReadOnly && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleToggleStatus(player)}
+                            title={isActive ? "Desactivar jugador" : "Activar jugador"}
+                            className={`p-1.5 rounded-lg border text-xs transition-colors ${
+                              isActive
+                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                                : "bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300"
+                            }`}
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => openEditModal(player)}
+                            title="Editar jugador"
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors border border-slate-700"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(player.id, `${player.first_name} ${player.last_name}`)}
+                            disabled={isDeleting}
+                            title="Eliminar jugador"
+                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors disabled:opacity-50"
+                          >
+                            {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Team & Document Info */}
@@ -449,7 +454,7 @@ export default function PlayersPage() {
                         )}
                       </div>
 
-                      {player.document_number && (
+                      {!isReadOnly && player.document_number && (
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500">Documento:</span>
                           <span className="text-slate-300 font-mono">{player.document_number}</span>

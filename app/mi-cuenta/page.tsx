@@ -44,7 +44,7 @@ export default function MiCuentaPage() {
     );
   }
 
-  if (!user) {
+  if (!isAuthenticated || !user) {
     return null;
   }
 
@@ -138,21 +138,21 @@ export default function MiCuentaPage() {
           <div className="pt-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-2">
               <Link
-                href="/#partidos"
+                href="/partidos"
                 className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-colors"
               >
                 <Calendar className="w-3.5 h-3.5 text-emerald-400" />
                 Ver Partidos
               </Link>
               <Link
-                href="/#clasificacion"
+                href="/clasificacion"
                 className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-colors"
               >
                 <Trophy className="w-3.5 h-3.5 text-amber-400" />
                 Clasificación
               </Link>
               <Link
-                href="/#estadisticas"
+                href="/estadisticas"
                 className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-colors"
               >
                 <Activity className="w-3.5 h-3.5 text-cyan-400" />

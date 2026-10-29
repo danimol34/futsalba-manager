@@ -10,8 +10,9 @@ import { Season, SeasonStatus } from "@/types";
 import { CalendarDays, Plus, CheckCircle2, Clock, X, Check, Edit2, Loader2 } from "lucide-react";
 
 export default function SeasonsPage() {
-  const { seasons, createSeason, updateSeason, isLoadingRemote } = useFutsal();
+  const { seasons, createSeason, updateSeason, isLoadingRemote, currentUserRole } = useFutsal();
   const toast = useToast();
+  const isReadOnly = currentUserRole === "PRENSA";
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSeason, setEditingSeason] = useState<Season | null>(null);
@@ -101,13 +102,15 @@ export default function SeasonsPage() {
             </p>
           </div>
 
-          <button
-            onClick={openCreateModal}
-            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            NUEVA TEMPORADA
-          </button>
+          {!isReadOnly && (
+            <button
+              onClick={openCreateModal}
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all self-start sm:self-auto active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              NUEVA TEMPORADA
+            </button>
+          )}
         </div>
 
         {/* Loading Indicator */}
@@ -162,34 +165,36 @@ export default function SeasonsPage() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-800 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(season)}
-                    className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center justify-center gap-1"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                    Editar
-                  </button>
+                {!isReadOnly && (
+                  <div className="pt-4 border-t border-slate-800 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(season)}
+                      className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      Editar
+                    </button>
 
-                  {season.status !== "ACTIVA" ? (
-                    <button
-                      type="button"
-                      onClick={() => handleSetStatus(season, "ACTIVA")}
-                      className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
-                    >
-                      Activar
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleSetStatus(season, "FINALIZADA")}
-                      className="flex-1 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-xs font-bold transition-colors"
-                    >
-                      Finalizar
-                    </button>
-                  )}
-                </div>
+                    {season.status !== "ACTIVA" ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSetStatus(season, "ACTIVA")}
+                        className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
+                      >
+                        Activar
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSetStatus(season, "FINALIZADA")}
+                        className="flex-1 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-xs font-bold transition-colors"
+                      >
+                        Finalizar
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
