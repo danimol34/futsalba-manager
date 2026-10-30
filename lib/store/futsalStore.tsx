@@ -7,6 +7,7 @@ import React, {
   useState,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import {
   Team,
@@ -209,13 +210,17 @@ async function fetchUserRolesFromDB(userId: string): Promise<UserRole[]> {
 
     if (data && data.length > 0) {
       const fetchedRoles = data.map((item: any) => item.role as UserRole);
-      console.log(`[Auth Role Check] UID: ${userId} -> Roles found in DB:`, fetchedRoles);
+      if (process.env.NODE_ENV === "development") {
+        console.log(`[Auth Role Check] UID: ${userId} -> Roles found in DB:`, fetchedRoles);
+      }
       return fetchedRoles;
     }
   } catch (e) {
     console.warn("Notice: exception fetching user_roles:", e);
   }
-  console.log(`[Auth Role Check] UID: ${userId} -> No roles found in DB, defaulting to []`);
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[Auth Role Check] UID: ${userId} -> No roles found in DB, defaulting to []`);
+  }
   return [];
 }
 
@@ -224,6 +229,7 @@ const FutsalContext = createContext<FutsalContextType | null>(null);
 export function FutsalProvider({ children }: { children: React.ReactNode }) {
   const [currentUserRole, setCurrentUserRoleState] = useState<UserRole>("PUBLICO");
   const [userRoles, setUserRoles] = useState<UserRole[]>(["PUBLICO"]);
+  const userRolesRef = useRef<UserRole[]>(["PUBLICO"]);
   const [user, setUser] = useState<any | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
@@ -233,12 +239,12 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
   const setCurrentUserRole = useCallback((role: UserRole) => {
     const isDevelopment = process.env.NODE_ENV === "development";
     // En producción NUNCA se permite cambiar a un rol no asignado en user_roles
-    if (!isDevelopment && !userRoles.includes(role)) {
-      console.warn(`[Security RBAC] Intento denegado de asumir rol no autorizado: ${role}`);
+    if (!isDevelopment && !userRolesRef.current.includes(role)) {
+      console.warn(`[Security RBAC] Intento denegado de asumir rol no autorizado: ${role}. Roles asignados:`, userRolesRef.current);
       return;
     }
     setCurrentUserRoleState(role);
-  }, [userRoles]);
+  }, []);
 
   const [authRetryCount, setAuthRetryCount] = useState(0);
 
@@ -276,15 +282,19 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
           if (isMounted) {
             const finalRoles = roles.length > 0 ? roles : (["PUBLICO"] as UserRole[]);
             const highestRole = getHighestRole(finalRoles);
+            userRolesRef.current = finalRoles;
             setUserRoles(finalRoles);
-            setCurrentUserRole(highestRole);
-            console.log(`[Auth State - Init] User: ${session.user.email} | UID: ${session.user.id} | Roles from DB: ${roles} | Highest Role: ${highestRole} | isAuthLoading will be: false`);
+            setCurrentUserRoleState(highestRole);
+            if (process.env.NODE_ENV === "development") {
+              console.log(`[RBAC Auth Diagnostic] (Init) User: ${session.user.email} | UID: ${session.user.id} | Roles from DB: [${finalRoles.join(", ")}] | Highest Role: ${highestRole} | isAuthLoading: false`);
+            }
           }
         } else if (isMounted) {
           setUser(null);
           setIsAuthenticated(false);
+          userRolesRef.current = ["PUBLICO"];
           setUserRoles(["PUBLICO"] as UserRole[]);
-          setCurrentUserRole("PUBLICO");
+          setCurrentUserRoleState("PUBLICO");
         }
       } catch (err: any) {
         console.error("[Auth State - Error] Session init exception:", err?.message || err);
@@ -303,22 +313,26 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
+        setIsAuthLoading(true);
         setUser(session.user);
         setIsAuthenticated(true);
         const roles = await fetchUserRolesFromDB(session.user.id);
         const finalRoles = roles.length > 0 ? roles : (["PUBLICO"] as UserRole[]);
         const highestRole = getHighestRole(finalRoles);
+        userRolesRef.current = finalRoles;
         setUserRoles(finalRoles);
-        setCurrentUserRole(highestRole);
-        console.log(`[Auth State - Change] Event: ${event} | User: ${session.user.email} | UID: ${session.user.id} | Highest Role: ${highestRole}`);
+        setCurrentUserRoleState(highestRole);
+        if (process.env.NODE_ENV === "development") {
+          console.log(`[RBAC Auth Diagnostic] (Change: ${event}) User: ${session.user.email} | UID: ${session.user.id} | Highest Role: ${highestRole} | Roles: [${finalRoles.join(", ")}]`);
+        }
       } else {
         setUser(null);
         setIsAuthenticated(false);
+        userRolesRef.current = ["PUBLICO"];
         setUserRoles(["PUBLICO"] as UserRole[]);
-        setCurrentUserRole("PUBLICO");
+        setCurrentUserRoleState("PUBLICO");
       }
       setIsAuthLoading(false);
-      console.log(`[Auth State - Finally] onAuthStateChange isAuthLoading -> false`);
     });
 
     return () => {
@@ -840,10 +854,13 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         const roles = await fetchUserRolesFromDB(data.session.user.id);
         const finalRoles = roles.length > 0 ? roles : (["PUBLICO"] as UserRole[]);
         const highestRole = getHighestRole(finalRoles);
+        userRolesRef.current = finalRoles;
         setUserRoles(finalRoles);
-        setCurrentUserRole(highestRole);
+        setCurrentUserRoleState(highestRole);
         assignedRole = highestRole;
-        console.log(`[Auth State - Login] User ID: ${data.session.user.id}, Highest role assigned:`, highestRole);
+        if (process.env.NODE_ENV === "development") {
+          console.log(`[RBAC Auth Diagnostic] (Login) User ID: ${data.session.user.id} | Email: ${data.session.user.email} | Roles found: [${finalRoles.join(", ")}] | Highest role assigned: ${highestRole}`);
+        }
       }
 
       return { success: true, role: assignedRole };
@@ -853,6 +870,11 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async (): Promise<void> => {
+    userRolesRef.current = ["PUBLICO"];
+    setUserRoles(["PUBLICO"] as UserRole[]);
+    setCurrentUserRoleState("PUBLICO");
+    setUser(null);
+    setIsAuthenticated(false);
     if (isSupabaseConfigured) {
       try {
         await supabase.auth.signOut();
@@ -860,10 +882,6 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         console.warn("Notice: Error signing out:", e);
       }
     }
-    setUser(null);
-    setIsAuthenticated(false);
-    setUserRoles(["PUBLICO"] as UserRole[]);
-    setCurrentUserRole("PUBLICO");
   };
 
   // TEAM MUTATIONS (Supabase source of truth)

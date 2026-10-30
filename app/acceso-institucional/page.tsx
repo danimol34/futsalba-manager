@@ -39,7 +39,10 @@ export default function AccesoInstitucionalPage() {
   // Si ya tiene sesión institucional activa, redirigir al panel operativo
   useEffect(() => {
     if (!isAuthLoading && isAuthenticated) {
-      if (currentUserRole && currentUserRole !== "PUBLICO") {
+      if (currentUserRole && currentUserRole !== "PUBLICO" && AUTHORIZED_STAFF_ROLES.includes(currentUserRole)) {
+        if (process.env.NODE_ENV === "development") {
+          console.log(`[RBAC Auth Diagnostic] Redirigiendo a /dashboard con rol institucional: ${currentUserRole}`);
+        }
         router.replace("/dashboard");
       }
     }
@@ -73,14 +76,18 @@ export default function AccesoInstitucionalPage() {
       const assignedRole = res.role;
 
       if (!assignedRole || assignedRole === "PUBLICO" || !AUTHORIZED_STAFF_ROLES.includes(assignedRole)) {
-        // Cerrar la sesión inmediatamente para que no quede abierta como público en un contexto administrativo
+        if (process.env.NODE_ENV === "development") {
+          console.warn(`[RBAC Auth Diagnostic] Acceso denegado en login. Motivo: el usuario ${email.trim()} no posee un rol institucional autorizado (Rol obtenido: ${assignedRole || 'ninguno'})`);
+        }
         await logout();
         setError("Acceso no autorizado. Tu cuenta no tiene permisos para acceder a esta sección.");
         setLoading(false);
         return;
       }
 
-      // Usuario institucional legítimo: entrar a la consola operativa
+      if (process.env.NODE_ENV === "development") {
+        console.log(`[RBAC Auth Diagnostic] Login exitoso. Rol institucional confirmado: ${assignedRole}. Accediendo a /dashboard...`);
+      }
       router.replace("/dashboard");
     } catch (err: any) {
       setError(err?.message || "Ocurrió un error inesperado al validar el acceso institucional.");
@@ -130,7 +137,12 @@ export default function AccesoInstitucionalPage() {
 
         {/* Card */}
         <div className="sports-card rounded-3xl p-6 md:p-8 border border-slate-800/90 bg-[#070d1c]/90 backdrop-blur-xl shadow-2xl">
-          {isAuthenticated && currentUserRole === "PUBLICO" && (
+          {isAuthLoading ? (
+            <div className="p-4 rounded-2xl bg-blue-600/10 border border-blue-500/20 text-blue-300 text-xs flex items-center gap-3 mb-5">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-400 shrink-0" />
+              <span>Verificando credenciales y roles institucionales...</span>
+            </div>
+          ) : isAuthenticated && currentUserRole === "PUBLICO" ? (
             <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-3 mb-5 animate-in fade-in">
               <AlertOctagon className="w-5 h-5 shrink-0 mt-0.5 text-amber-400" />
               <div className="space-y-2 w-full">
@@ -156,7 +168,7 @@ export default function AccesoInstitucionalPage() {
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
