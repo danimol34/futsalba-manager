@@ -9,15 +9,19 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { useToast } from "@/lib/context/ToastContext";
 import { formatSupabaseError } from "@/lib/utils/errorHandler";
-import { Competition, Match } from "@/types";
+import { isUUID } from "@/lib/utils/validators";
+import { Competition, Match, Season } from "@/types";
 import { MatchdayInsert } from "@/lib/services";
-import { Layers, Plus, Calendar, Swords, X, Check, Loader2 } from "lucide-react";
+import { Layers, Plus, Calendar, Swords, X, Check, Loader2, AlertTriangle } from "lucide-react";
 
 interface CreateMatchdayModalProps {
   isOpen: boolean;
   onClose: () => void;
   nextNumber: number;
+  activeSeason: Season | null;
   competitions: Competition[];
+  isLoadingCompetitions: boolean;
+  onRefreshCompetitions: () => Promise<void>;
   onCreateMatchday: (data: MatchdayInsert) => Promise<any>;
 }
 
@@ -25,7 +29,10 @@ const CreateMatchdayModal = memo(function CreateMatchdayModal({
   isOpen,
   onClose,
   nextNumber,
+  activeSeason,
   competitions,
+  isLoadingCompetitions,
+  onRefreshCompetitions,
   onCreateMatchday,
 }: CreateMatchdayModalProps) {
   const toast = useToast();
@@ -33,23 +40,54 @@ const CreateMatchdayModal = memo(function CreateMatchdayModal({
   // Estado 100% local del formulario para evitar re-renderizar el Dashboard mientras se escribe
   const [name, setName] = useState(`Jornada ${nextNumber}`);
   const [matchdayNumber, setMatchdayNumber] = useState<string>(String(nextNumber));
-  const [competitionId, setCompetitionId] = useState(competitions[0]?.id || "");
+  const [competitionId, setCompetitionId] = useState("");
   const [startDate, setStartDate] = useState("2026-03-07");
   const [endDate, setEndDate] = useState("2026-03-08");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSyncingModal, setIsSyncingModal] = useState(false);
 
+  // Al abrir el modal, inicializar campos y asegurar carga fresca de competiciones desde Supabase
   useEffect(() => {
-    if (isOpen) {
-      setName(`Jornada ${nextNumber}`);
-      setMatchdayNumber(String(nextNumber));
-      setCompetitionId(competitions[0]?.id || "");
-      setStartDate("2026-03-07");
-      setEndDate("2026-03-08");
-      setIsSubmitting(false);
+    if (!isOpen) return;
+    setName(`Jornada ${nextNumber}`);
+    setMatchdayNumber(String(nextNumber));
+    setStartDate("2026-03-07");
+    setEndDate("2026-03-08");
+    setIsSubmitting(false);
+
+    let active = true;
+    setIsSyncingModal(true);
+    onRefreshCompetitions().finally(() => {
+      if (active) setIsSyncingModal(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, nextNumber, onRefreshCompetitions]);
+
+  // Sincronizar selección por defecto cuando terminan de cargar las competiciones válidas
+  useEffect(() => {
+    if (!isOpen) return;
+    if (competitions.length > 0) {
+      setCompetitionId((prev) =>
+        prev && competitions.some((c) => c.id === prev) ? prev : competitions[0].id
+      );
+    } else {
+      setCompetitionId("");
     }
-  }, [isOpen, nextNumber, competitions]);
+  }, [isOpen, competitions]);
 
   if (!isOpen) return null;
+
+  const isWaitingCompetitions = isLoadingCompetitions || isSyncingModal;
+  const hasValidCompetitions = !isWaitingCompetitions && competitions.length > 0;
+  const isCompetitionValid = isUUID(competitionId) && competitions.some((c) => c.id === competitionId);
+  const canCreateMatchday =
+    !isSubmitting &&
+    !isWaitingCompetitions &&
+    hasValidCompetitions &&
+    isCompetitionValid;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,8 +103,13 @@ const CreateMatchdayModal = memo(function CreateMatchdayModal({
       return;
     }
 
-    if (!competitionId && competitions.length > 0) {
-      toast.warning("Debes seleccionar una competición para la jornada.");
+    if (!hasValidCompetitions) {
+      toast.warning("No hay competiciones registradas para esta temporada.");
+      return;
+    }
+
+    if (!isCompetitionValid) {
+      toast.warning("Debes seleccionar una competición válida para la jornada.");
       return;
     }
 
@@ -94,10 +137,17 @@ const CreateMatchdayModal = memo(function CreateMatchdayModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-          <h3 className="text-lg font-black text-white flex items-center gap-2">
-            <Layers className="w-5 h-5 text-blue-400" />
-            NUEVA JORNADA
-          </h3>
+          <div>
+            <h3 className="text-lg font-black text-white flex items-center gap-2">
+              <Layers className="w-5 h-5 text-blue-400" />
+              NUEVA JORNADA
+            </h3>
+            {activeSeason && (
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Temporada activa: <span className="text-slate-200 font-semibold">{activeSeason.name}</span>
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -140,22 +190,49 @@ const CreateMatchdayModal = memo(function CreateMatchdayModal({
             </div>
             <div>
               <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                Competición
+                Competición *
               </label>
-              <select
-                value={competitionId}
-                onChange={(e) => setCompetitionId(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-              >
-                <option value="">Selecciona torneo</option>
-                {competitions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              {isWaitingCompetitions ? (
+                <div className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 shrink-0" />
+                  <span className="truncate">Cargando...</span>
+                </div>
+              ) : (
+                <select
+                  value={competitionId}
+                  onChange={(e) => setCompetitionId(e.target.value)}
+                  disabled={!hasValidCompetitions}
+                  required
+                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Selecciona torneo</option>
+                  {competitions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
+
+          {!isWaitingCompetitions && !hasValidCompetitions && (
+            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-200">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold text-amber-300">
+                  No hay competiciones registradas para esta temporada.
+                </p>
+                <Link
+                  href="/dashboard/competiciones"
+                  onClick={onClose}
+                  className="inline-block text-[11px] font-bold text-blue-400 hover:text-blue-300 underline"
+                >
+                  Ir a Competiciones para registrar un torneo →
+                </Link>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -193,8 +270,8 @@ const CreateMatchdayModal = memo(function CreateMatchdayModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50"
+              disabled={!canCreateMatchday}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>
@@ -216,7 +293,20 @@ const CreateMatchdayModal = memo(function CreateMatchdayModal({
 });
 
 export default function MatchdaysPage() {
-  const { matchdays, matches, competitions, createMatchday, isLoadingRemote, currentUserRole } = useFutsal();
+  const {
+    matchdays,
+    matches,
+    seasons,
+    competitions,
+    leagueSettings,
+    createMatchday,
+    refetchSeasons,
+    refetchCompetitions,
+    isAuthLoading,
+    isLoadingRemote,
+    isCompetitionsLoading,
+    currentUserRole,
+  } = useFutsal();
   const isReadOnly = currentUserRole === "PRENSA";
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -228,6 +318,40 @@ export default function MatchdaysPage() {
   const closeCreateModal = useCallback(() => {
     setModalOpen(false);
   }, []);
+
+  const handleRefreshCompetitions = useCallback(async () => {
+    await Promise.all([refetchSeasons(), refetchCompetitions()]);
+  }, [refetchSeasons, refetchCompetitions]);
+
+  // Temporadas válidas con UUID real de Supabase
+  const validSeasons = useMemo(
+    () => seasons.filter((s) => isUUID(s.id)),
+    [seasons]
+  );
+
+  // Temporada activa real en Supabase (nunca IDs demo)
+  const activeSeason = useMemo<Season | null>(() => {
+    const activeByStatus = validSeasons.find((s) => s.status === "ACTIVA");
+    if (activeByStatus) return activeByStatus;
+    if (
+      leagueSettings.active_season_id &&
+      isUUID(leagueSettings.active_season_id)
+    ) {
+      const bySettings = validSeasons.find(
+        (s) => s.id === leagueSettings.active_season_id
+      );
+      if (bySettings) return bySettings;
+    }
+    return validSeasons[0] || null;
+  }, [validSeasons, leagueSettings.active_season_id]);
+
+  // Competiciones con UUID real cuyo season_id coincide con la temporada activa
+  const activeSeasonCompetitions = useMemo<Competition[]>(() => {
+    if (!activeSeason || !isUUID(activeSeason.id)) return [];
+    return competitions.filter(
+      (c) => isUUID(c.id) && isUUID(c.season_id) && c.season_id === activeSeason.id
+    );
+  }, [competitions, activeSeason]);
 
   // Pre-agrupar partidos por jornada y competiciones por ID para evitar filtros O(N*M) en cada render
   const matchesByMatchday = useMemo(() => {
@@ -367,7 +491,10 @@ export default function MatchdaysPage() {
           isOpen={modalOpen}
           onClose={closeCreateModal}
           nextNumber={matchdays.length + 1}
-          competitions={competitions}
+          activeSeason={activeSeason}
+          competitions={activeSeasonCompetitions}
+          isLoadingCompetitions={isAuthLoading || isLoadingRemote || isCompetitionsLoading}
+          onRefreshCompetitions={handleRefreshCompetitions}
           onCreateMatchday={createMatchday}
         />
       </div>

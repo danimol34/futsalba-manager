@@ -96,6 +96,7 @@ interface FutsalContextType {
 
   // Remote Sync State
   isLoadingRemote: boolean;
+  isCompetitionsLoading: boolean;
   isSupabaseActive: boolean;
   refetchAll: () => Promise<void>;
   refetchTeams: () => Promise<void>;
@@ -244,6 +245,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isLoadingRemote, setIsLoadingRemote] = useState<boolean>(isSupabaseConfigured);
+  const [isCompetitionsLoading, setIsCompetitionsLoading] = useState<boolean>(isSupabaseConfigured);
 
   const setCurrentUserRole = useCallback((role: UserRole) => {
     const isDevelopment = process.env.NODE_ENV === "development";
@@ -355,14 +357,14 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     process.env.NODE_ENV === "development" &&
     process.env.NEXT_PUBLIC_ENABLE_DEMO_DATA === "true";
 
-  // Entities
-  const [seasons, setSeasons] = useState<Season[]>(isDemoMode ? [initialSeason] : []);
-  const [competitions, setCompetitions] = useState<Competition[]>(isDemoMode ? initialCompetitions : []);
+  // Entities (Seasons, Competitions y Matchdays usan exclusivamente UUIDs reales de Supabase)
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [venues, setVenues] = useState<Venue[]>(isDemoMode ? initialVenues : []);
   const [referees, setReferees] = useState<Referee[]>(isDemoMode ? initialReferees : []);
   const [teams, setTeams] = useState<Team[]>(isDemoMode ? initialTeams : []);
   const [players, setPlayers] = useState<Player[]>(isDemoMode ? initialPlayers : []);
-  const [matchdays, setMatchdays] = useState<Matchday[]>(isDemoMode ? initialMatchdays : []);
+  const [matchdays, setMatchdays] = useState<Matchday[]>([]);
   const [matches, setMatches] = useState<Match[]>(isDemoMode ? initialMatches : []);
   const [matchEvents, setMatchEvents] = useState<MatchEvent[]>(isDemoMode ? initialMatchEvents : []);
   const [logisticsTasks, setLogisticsTasks] = useState<LogisticsTask[]>(isDemoMode ? initialLogisticsTasks : []);
@@ -454,7 +456,17 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     if (!isSupabaseConfigured) return;
     try {
       const data = await seasonsService.getSeasons();
-      setSeasons(data);
+      const valid = data.filter((s) => isUUID(s.id));
+      setSeasons(valid);
+      const activeSeason =
+        valid.find((s) => s.status === "ACTIVA") || valid[0];
+      if (activeSeason) {
+        setLeagueSettings((prev) =>
+          isUUID(prev.active_season_id)
+            ? prev
+            : { ...prev, active_season_id: activeSeason.id }
+        );
+      }
     } catch (e) {
       console.warn("Notice: could not refetch seasons from Supabase:", e);
     }
@@ -462,11 +474,14 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
 
   const refetchCompetitions = useCallback(async () => {
     if (!isSupabaseConfigured) return;
+    setIsCompetitionsLoading(true);
     try {
       const data = await competitionsService.getCompetitions();
-      setCompetitions(data);
+      setCompetitions(data.filter((c) => isUUID(c.id)));
     } catch (e) {
       console.warn("Notice: could not refetch competitions from Supabase:", e);
+    } finally {
+      setIsCompetitionsLoading(false);
     }
   }, []);
 
@@ -474,7 +489,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     if (!isSupabaseConfigured) return;
     try {
       const data = await matchdaysService.getMatchdays();
-      setMatchdays(data);
+      setMatchdays(data.filter((m) => isUUID(m.id)));
     } catch (e) {
       console.warn("Notice: could not refetch matchdays from Supabase:", e);
     }
@@ -544,16 +559,23 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     refetchStandingsAdjustments,
   ]);
 
-  // Initial load from Supabase on mount (Supabase is source of truth)
+  // Initial load from Supabase once auth session check finishes (Supabase is source of truth)
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setIsLoadingRemote(false);
+      setIsCompetitionsLoading(false);
+      return;
+    }
+
+    // Esperar a que la sesión de Supabase Auth se hidrate antes de consultar tablas con RLS authenticated
+    if (isAuthLoading) {
       return;
     }
 
     let isMounted = true;
     async function initSupabaseData() {
       setIsLoadingRemote(true);
+      setIsCompetitionsLoading(true);
       try {
         const isStaff = userRoles.some((r) => r !== "PUBLICO");
         const [
@@ -590,16 +612,16 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         if (matchesRes.status === "fulfilled") {
           setMatches(matchesRes.value);
         }
-        let loadedSeasons = seasons;
-        if (seasonsRes.status === "fulfilled" && seasonsRes.value.length > 0) {
-          loadedSeasons = seasonsRes.value;
+        let loadedSeasons: Season[] = [];
+        if (seasonsRes.status === "fulfilled") {
+          loadedSeasons = seasonsRes.value.filter((s) => isUUID(s.id));
           setSeasons(loadedSeasons);
         }
         if (competitionsRes.status === "fulfilled") {
-          setCompetitions(competitionsRes.value);
+          setCompetitions(competitionsRes.value.filter((c) => isUUID(c.id)));
         }
         if (matchdaysRes.status === "fulfilled") {
-          setMatchdays(matchdaysRes.value);
+          setMatchdays(matchdaysRes.value.filter((m) => isUUID(m.id)));
         }
         if (venuesRes.status === "fulfilled") {
           setVenues(venuesRes.value);
@@ -607,23 +629,28 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         if (refereesRes.status === "fulfilled") {
           setReferees(refereesRes.value);
         }
-        if (settingsRes.status === "fulfilled" && settingsRes.value) {
-          const loadedSettings = { ...settingsRes.value };
-          // Si no tiene active_season_id con UUID válido, vincular a la temporada activa real cargada desde Supabase
-          if (!isUUID(loadedSettings.active_season_id)) {
-            const activeSeason =
-              loadedSeasons.find((s) => s.status === "ACTIVA" && isUUID(s.id)) ||
-              loadedSeasons.find((s) => isUUID(s.id));
-            if (activeSeason) {
-              loadedSettings.active_season_id = activeSeason.id;
-            }
-          }
-          setLeagueSettings(loadedSettings);
+
+        const activeSeason =
+          loadedSeasons.find((s) => s.status === "ACTIVA" && isUUID(s.id)) ||
+          loadedSeasons.find((s) => isUUID(s.id));
+
+        const loadedSettings =
+          settingsRes.status === "fulfilled" && settingsRes.value
+            ? { ...settingsRes.value }
+            : { ...initialLeagueSettings };
+
+        // Si no tiene active_season_id con UUID válido, vincular a la temporada activa real cargada desde Supabase
+        if (!isUUID(loadedSettings.active_season_id) && activeSeason) {
+          loadedSettings.active_season_id = activeSeason.id;
         }
+        setLeagueSettings(loadedSettings);
       } catch (err) {
         console.warn("Notice: Initial sync error from Supabase:", err);
       } finally {
-        if (isMounted) setIsLoadingRemote(false);
+        if (isMounted) {
+          setIsCompetitionsLoading(false);
+          setIsLoadingRemote(false);
+        }
       }
     }
 
@@ -632,7 +659,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [userRoles]);
+  }, [isAuthLoading, isAuthenticated, user?.id, userRoles, currentUserRole]);
 
   // Supabase Realtime channel for live updates
   useEffect(() => {
@@ -1071,90 +1098,39 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
 
   // SEASONS, COMPETITIONS, MATCHDAYS & VENUES
   const createSeason = async (seasonData: SeasonInsert): Promise<Season> => {
-    if (isSupabaseConfigured) {
-      const created = await seasonsService.createSeason(seasonData);
-      setSeasons((prev) => [created, ...prev]);
-      return created;
-    }
-    const local: Season = {
-      id: `season-${Date.now()}`,
-      name: seasonData.name,
-      start_date: seasonData.start_date || undefined,
-      end_date: seasonData.end_date || undefined,
-      status: seasonData.status || "BORRADOR",
-    };
-    setSeasons((prev) => [local, ...prev]);
-    return local;
+    const created = await seasonsService.createSeason(seasonData);
+    setSeasons((prev) => [created, ...prev.filter((s) => s.id !== created.id)]);
+    return created;
   };
 
   const updateSeason = async (id: string, updates: SeasonUpdate): Promise<Season> => {
-    if (isSupabaseConfigured) {
-      const updated = await seasonsService.updateSeason(id, updates);
-      setSeasons((prev) => prev.map((s) => (s.id === id ? updated : s)));
-      return updated;
-    }
-    setSeasons((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
-    const found = seasons.find((s) => s.id === id);
-    return { ...(found || {}), ...updates } as Season;
+    const updated = await seasonsService.updateSeason(id, updates);
+    setSeasons((prev) => prev.map((s) => (s.id === id ? updated : s)));
+    return updated;
   };
 
   const createCompetition = async (compData: CompetitionInsert): Promise<Competition> => {
-    if (isSupabaseConfigured) {
-      const created = await competitionsService.createCompetition(compData);
-      setCompetitions((prev) => [created, ...prev]);
-      return created;
-    }
-    const local: Competition = {
-      id: `comp-${Date.now()}`,
-      season_id: compData.season_id || undefined,
-      name: compData.name,
-      competition_type: compData.competition_type || "LIGA",
-      format: compData.format || "TODOS_CONTRA_TODOS",
-      number_of_teams: compData.number_of_teams || 8,
-      status: compData.status ?? true,
-    };
-    setCompetitions((prev) => [local, ...prev]);
-    return local;
+    const created = await competitionsService.createCompetition(compData);
+    setCompetitions((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
+    return created;
   };
 
   const updateCompetition = async (id: string, updates: CompetitionUpdate): Promise<Competition> => {
-    if (isSupabaseConfigured) {
-      const updated = await competitionsService.updateCompetition(id, updates);
-      setCompetitions((prev) => prev.map((c) => (c.id === id ? updated : c)));
-      return updated;
-    }
-    setCompetitions((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
-    const found = competitions.find((c) => c.id === id);
-    return { ...(found || {}), ...updates } as Competition;
+    const updated = await competitionsService.updateCompetition(id, updates);
+    setCompetitions((prev) => prev.map((c) => (c.id === id ? updated : c)));
+    return updated;
   };
 
   const createMatchday = async (mdData: MatchdayInsert): Promise<Matchday> => {
-    if (isSupabaseConfigured) {
-      const created = await matchdaysService.createMatchday(mdData);
-      setMatchdays((prev) => [created, ...prev]);
-      return created;
-    }
-    const local: Matchday = {
-      id: `md-${Date.now()}`,
-      competition_id: mdData.competition_id,
-      name: mdData.name,
-      matchday_number: mdData.matchday_number || 1,
-      start_date: mdData.start_date || undefined,
-      end_date: mdData.end_date || undefined,
-    };
-    setMatchdays((prev) => [local, ...prev]);
-    return local;
+    const created = await matchdaysService.createMatchday(mdData);
+    setMatchdays((prev) => [...prev.filter((m) => m.id !== created.id), created]);
+    return created;
   };
 
   const updateMatchday = async (id: string, updates: MatchdayUpdate): Promise<Matchday> => {
-    if (isSupabaseConfigured) {
-      const updated = await matchdaysService.updateMatchday(id, updates);
-      setMatchdays((prev) => prev.map((m) => (m.id === id ? updated : m)));
-      return updated;
-    }
-    setMatchdays((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m)));
-    const found = matchdays.find((m) => m.id === id);
-    return { ...(found || {}), ...updates } as Matchday;
+    const updated = await matchdaysService.updateMatchday(id, updates);
+    setMatchdays((prev) => prev.map((m) => (m.id === id ? updated : m)));
+    return updated;
   };
 
   const createVenue = async (venueData: VenueInsert): Promise<Venue> => {
@@ -1589,6 +1565,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         logout,
 
         isLoadingRemote,
+        isCompetitionsLoading,
         isSupabaseActive: isSupabaseConfigured,
         refetchAll,
         refetchTeams,

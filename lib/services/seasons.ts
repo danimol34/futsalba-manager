@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { isUUID } from "@/lib/utils/validators";
 import { Season, SeasonStatus } from "@/types";
 
 export type SeasonInsert = {
@@ -19,7 +20,7 @@ export const seasonsService = {
       .order("created_at", { ascending: false });
 
     if (error) throw error;
-    return (data as Season[]) || [];
+    return ((data as Season[]) || []).filter((s) => isUUID(s.id));
   },
 
   async getSeasonById(id: string): Promise<Season | null> {

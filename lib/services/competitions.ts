@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { isUUID } from "@/lib/utils/validators";
 import { Competition } from "@/types";
 
 export type CompetitionInsert = {
@@ -19,14 +20,14 @@ export const competitionsService = {
     if (!isSupabaseConfigured) return [];
     let query = supabase.from("competitions").select("*");
 
-    if (seasonId) {
+    if (seasonId && isUUID(seasonId)) {
       query = query.eq("season_id", seasonId);
     }
 
     const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) throw error;
-    return (data as Competition[]) || [];
+    return ((data as Competition[]) || []).filter((c) => isUUID(c.id));
   },
 
   async getCompetitionById(id: string): Promise<Competition | null> {

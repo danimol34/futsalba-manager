@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { isUUID } from "@/lib/utils/validators";
 import { Matchday } from "@/types";
 
 export type MatchdayInsert = {
@@ -16,14 +17,14 @@ export const matchdaysService = {
     if (!isSupabaseConfigured) return [];
     let query = supabase.from("matchdays").select("*");
 
-    if (competitionId) {
+    if (competitionId && isUUID(competitionId)) {
       query = query.eq("competition_id", competitionId);
     }
 
     const { data, error } = await query.order("matchday_number", { ascending: true });
 
     if (error) throw error;
-    return (data as Matchday[]) || [];
+    return ((data as Matchday[]) || []).filter((md) => isUUID(md.id));
   },
 
   async getMatchdayById(id: string): Promise<Matchday | null> {
@@ -43,6 +44,9 @@ export const matchdaysService = {
 
   async createMatchday(md: MatchdayInsert): Promise<Matchday> {
     if (!isSupabaseConfigured) throw new Error("Supabase no está configurado");
+    if (!isUUID(md.competition_id)) {
+      throw new Error("Debes seleccionar una competición válida registrada en Supabase.");
+    }
 
     const payload = {
       competition_id: md.competition_id,

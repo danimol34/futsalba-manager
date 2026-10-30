@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { useToast } from "@/lib/context/ToastContext";
 import { formatSupabaseError } from "@/lib/utils/errorHandler";
+import { isUUID } from "@/lib/utils/validators";
 import { Competition, Season } from "@/types";
 import { CompetitionInsert, CompetitionUpdate } from "@/lib/services";
 import {
@@ -49,12 +50,26 @@ const CompetitionFormModal = memo(function CompetitionFormModal({
   const [status, setStatus] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const validSeasons = useMemo(
+    () => seasons.filter((s) => isUUID(s.id)),
+    [seasons]
+  );
+
+  const defaultActiveSeasonId = useMemo(() => {
+    const active = validSeasons.find((s) => s.status === "ACTIVA");
+    return active?.id || validSeasons[0]?.id || "";
+  }, [validSeasons]);
+
   useEffect(() => {
     if (!isOpen) return;
 
     if (editingComp) {
       setName(editingComp.name || "");
-      setSeasonId(editingComp.season_id || seasons[0]?.id || "");
+      setSeasonId(
+        editingComp.season_id && isUUID(editingComp.season_id)
+          ? editingComp.season_id
+          : defaultActiveSeasonId
+      );
       setCompetitionType(editingComp.competition_type || editingComp.type || "LIGA");
       setFormat(editingComp.format || "TODOS_CONTRA_TODOS");
       setNumberOfTeams(String(editingComp.number_of_teams ?? 8));
@@ -67,7 +82,7 @@ const CompetitionFormModal = memo(function CompetitionFormModal({
       );
     } else {
       setName("");
-      setSeasonId(seasons[0]?.id || "");
+      setSeasonId(defaultActiveSeasonId);
       setCompetitionType("LIGA");
       setFormat("TODOS_CONTRA_TODOS");
       setNumberOfTeams("8");
@@ -76,7 +91,7 @@ const CompetitionFormModal = memo(function CompetitionFormModal({
       setStatus(true);
     }
     setIsSubmitting(false);
-  }, [isOpen, editingComp, seasons]);
+  }, [isOpen, editingComp, defaultActiveSeasonId]);
 
   if (!isOpen) return null;
 
@@ -159,19 +174,23 @@ const CompetitionFormModal = memo(function CompetitionFormModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                Temporada Vinculada
+                Temporada Vinculada *
               </label>
               <select
+                required
                 value={seasonId}
                 onChange={(e) => setSeasonId(e.target.value)}
                 className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
               >
-                <option value="">Sin temporada</option>
-                {seasons.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
+                {validSeasons.length === 0 ? (
+                  <option value="">Sin temporadas registradas</option>
+                ) : (
+                  validSeasons.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} {s.status === "ACTIVA" ? "(ACTIVA)" : `(${s.status})`}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
