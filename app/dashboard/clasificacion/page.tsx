@@ -185,6 +185,11 @@ export default function StandingsPage() {
     setModalOpen(true);
   };
 
+  const closeAdjustmentModal = () => {
+    if (isSubmitting) return;
+    setModalOpen(false);
+  };
+
   const handleModalSeasonChange = (newSeasonId: string) => {
     setModalSeasonId(newSeasonId);
     const compsForSeason = validCompetitions.filter(
@@ -536,16 +541,21 @@ export default function StandingsPage() {
 
         {/* Modal: Ajustar Puntos Manualmente */}
         {modalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-            <div className="sports-card w-full max-w-lg rounded-3xl p-6 border border-slate-700 bg-[#0a1020] shadow-2xl relative">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) closeAdjustmentModal();
+            }}
+          >
+            <div className="sports-card w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-3xl p-5 sm:p-6 border border-slate-700 bg-[#0a1020] shadow-2xl relative">
               {/* Header Modal con Controles Claros de Salida */}
-              <div className="pb-4 border-b border-slate-800 space-y-3">
+              <div className="sticky top-0 z-10 bg-[#0a1020] pb-4 border-b border-slate-800 space-y-3">
                 {/* Fila superior: ← Volver a la izquierda y X a la derecha */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    onClick={() => setModalOpen(false)}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold border border-slate-700 transition-all active:scale-95 shadow-sm min-h-[42px] touch-manipulation"
+                    onClick={closeAdjustmentModal}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-all active:scale-95 shadow-sm min-h-[42px] touch-manipulation"
                     title="Regresar a la clasificación sin guardar"
                   >
                     <ArrowLeft className="w-4 h-4" />
@@ -554,27 +564,29 @@ export default function StandingsPage() {
 
                   <button
                     type="button"
-                    onClick={() => setModalOpen(false)}
-                    aria-label="Cerrar ventana de ajuste"
-                    title="Cerrar sin guardar"
-                    className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-slate-700 transition-all active:scale-95 touch-manipulation"
+                    onClick={closeAdjustmentModal}
+                    aria-label="Cerrar ajuste manual de puntos"
+                    title="Cerrar ajuste manual de puntos"
+                    className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white flex items-center justify-center border border-slate-700 hover:border-slate-600 transition-all active:scale-95 shadow-sm touch-manipulation shrink-0"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
                 {/* Título e Icono Oficial */}
-                <div className="flex items-center gap-3 pt-1">
-                  <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold shrink-0">
-                    <SlidersHorizontal className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-black text-white tracking-tight">
-                      AJUSTE MANUAL DE PUNTOS
-                    </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Resolución federativa / disciplinaria oficial
-                    </p>
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold shrink-0">
+                      <SlidersHorizontal className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-white tracking-tight">
+                        AJUSTE MANUAL DE PUNTOS
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Resolución federativa / disciplinaria oficial
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
