@@ -2,35 +2,51 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useFutsal } from "@/lib/store/futsalStore";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { INITIAL_NEWS, NewsItem } from "@/app/noticias/page";
 import {
-  Flame,
-  ArrowRight,
-  LogIn,
-  Users,
   Smartphone,
-  Calendar,
   Shield,
   Award,
   Activity,
   Tv,
-  CheckCircle2,
   X,
-  Sparkles,
   MapPin,
   ChevronRight,
   Info,
   Clock,
-  Download,
+  Mail,
+  Building2,
+  Users2,
+  CalendarDays,
+  FileText,
+  Lock,
+  Sparkles,
 } from "lucide-react";
+
+function InstagramIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
 
 interface TeamMember {
   id: string;
   role: string;
-  name: string;
   title: string;
+  area: string;
   description: string;
   tag: string;
 }
@@ -38,129 +54,154 @@ interface TeamMember {
 const PUBLIC_STAFF: TeamMember[] = [
   {
     id: "staff-1",
-    role: "Presidencia",
-    name: "Presidencia Institucional",
-    title: "Presidente de la Liga FUTSALBA",
+    role: "Junta Directiva",
+    title: "Comisión Directiva Central",
+    area: "Alta Conducción",
     description:
-      "Conducción general, representación legal y articulación estratégica con organismos federativos nacionales e internacionales.",
-    tag: "Alta Dirección",
+      "Máximo órgano ejecutivo de la Liga responsable de la gobernanza, planificación estratégica y articulación institucional con entidades deportivas.",
+    tag: "Dirección",
   },
   {
     id: "staff-2",
-    role: "Directiva",
-    name: "Comisión Directiva y Secretaría",
-    title: "Secretaría General y Relaciones Institucionales",
+    role: "Secretaría General",
+    title: "Secretaría General y Asuntos Legales",
+    area: "Administración",
     description:
-      "Gestión administrativa, reglamentaria y vínculo permanente con los delegados de los clubes participantes.",
+      "Gestión documental, reglamentaria y vínculo protocolar permanente con los delegados y representantes de los clubes afiliados.",
     tag: "Gobernanza",
   },
   {
     id: "staff-3",
-    role: "Mesa Técnica",
-    name: "Coordinación de Mesa y Cronometraje",
-    title: "Mesa Técnica y Jueces Oficiales",
+    role: "Dirección Técnica",
+    title: "Comisión Técnica y Competiciones",
+    area: "Área Deportiva",
     description:
-      "Responsables del control de actas digitales, sincronización del reloj en vivo, cómputo de faltas acumuladas y tiempos muertos.",
-    tag: "Operaciones de Partido",
+      "Programación de calendarios, fixture, homologación de plantillas de jugadores y supervisión del formato de competición oficial.",
+    tag: "Torneo",
   },
   {
     id: "staff-4",
-    role: "Prensa",
-    name: "Departamento de Comunicaciones",
-    title: "Prensa y Cobertura Audiovisual",
+    role: "Colegio de Árbitros",
+    title: "Comisión Arbitral Oficial",
+    area: "Justicia Deportiva",
     description:
-      "Generación de contenidos informativos, boletines de prensa, entrevistas, redes sociales y transmisión de eventos.",
-    tag: "Medios",
+      "Designación, evaluación continua y capacitación reglamentaria del cuerpo arbitral bajo las directrices oficiales de las reglas del futsal.",
+    tag: "Arbitraje",
   },
   {
     id: "staff-5",
-    role: "Logística",
-    name: "Comisión de Sedes e Infraestructura",
-    title: "Logística y Seguridad de Sedes",
+    role: "Mesa Técnica",
+    title: "Coordinación de Cronometraje y Actas",
+    area: "Operaciones",
     description:
-      "Supervisión del estado de las canchas, superficies de parquet flotante, graderías y protocolos de seguridad sanitaria.",
-    tag: "Infraestructura",
+      "Operación del sistema digital de cronometraje, registro de incidencias, tiempos muertos y control de faltas acumuladas en cada encuentro.",
+    tag: "Mesa Digital",
   },
   {
     id: "staff-6",
-    role: "Disciplina",
-    name: "Tribunal de Penas y Cumplimiento",
-    title: "Comisión Disciplinaria",
+    role: "Tribunal Disciplinario",
+    title: "Tribunal de Penas y Fair Play",
+    area: "Resoluciones",
     description:
-      "Aplicación del código de faltas, sanciones disciplinarias y garantía del juego limpio en todos los encuentros.",
-    tag: "Justicia Deportiva",
+      "Aplicación objetiva de las normas de conducta deportiva, análisis de actas arbitrales y emisión de resoluciones sancionatorias.",
+    tag: "Disciplina",
+  },
+  {
+    id: "staff-7",
+    role: "Infraestructura",
+    title: "Comisión de Sedes y Seguridad",
+    area: "Logística",
+    description:
+      "Supervisión del estado de las canchas con superficie de madera flotante, iluminación técnica, accesos y protocolos de seguridad en los estadios.",
+    tag: "Sedes",
+  },
+  {
+    id: "staff-8",
+    role: "Prensa y Medios",
+    title: "Departamento de Comunicaciones",
+    area: "Prensa Oficial",
+    description:
+      "Emisión de comunicados oficiales, coberturas audiovisuales, atención a medios acreditados y difusión pública de la Liga.",
+    tag: "Comunicaciones",
   },
 ];
 
 interface GalleryItem {
   id: string;
-  category: "EQUIPOS" | "CANCHAS" | "PREMIACIONES" | "JORNADAS";
+  category: "JORNADAS" | "EQUIPOS" | "CANCHAS" | "INAUGURACIONES" | "PREMIACIONES" | "EVENTOS";
   title: string;
   caption: string;
-  aspect: string;
   gradient: string;
-  iconName: string;
+  badge: string;
 }
 
 const GALLERY_ITEMS: GalleryItem[] = [
   {
     id: "gal-1",
     category: "CANCHAS",
-    title: "Superficie de Parquet Flotante",
-    caption: "Microestadio Central habilitado con piso reglamentario de alta absorción de impacto.",
-    aspect: "col-span-1 md:col-span-2",
+    title: "Superficie de Parquet Flotante Habilitada",
+    caption:
+      "Microestadio central acondicionado con piso reglamentario de alta amortiguación para el máximo rendimiento de los atletas.",
     gradient: "from-blue-900/60 via-slate-900/80 to-[#050914]",
-    iconName: "Arena",
+    badge: "Infraestructura",
   },
   {
     id: "gal-2",
-    category: "EQUIPOS",
-    title: "Desfile Oficial de Clubes",
-    caption: "Plantillas de los 12 clubes afiliados en la ceremonia inaugural de temporada.",
-    aspect: "col-span-1",
+    category: "INAUGURACIONES",
+    title: "Ceremonia Protocolar de Apertura",
+    caption:
+      "Acto inaugural de la temporada oficial con la presentación de delegaciones, himnos patrios y encendido del marcador central.",
     gradient: "from-indigo-900/60 via-slate-900/80 to-[#050914]",
-    iconName: "Clubes",
+    badge: "Institucional",
   },
   {
     id: "gal-3",
     category: "JORNADAS",
-    title: "Intensidad y Técnica en Vivo",
-    caption: "Acciones vibrantes del torneo regular seguidas por miles de aficionados.",
-    aspect: "col-span-1",
-    gradient: "from-cyan-900/60 via-slate-900/80 to-[#050914]",
-    iconName: "Acción",
+    title: "Intensidad y Velocidad en Pista",
+    caption:
+      "Duelos de alto nivel técnico en el desarrollo de la fase regular seguidos con entusiasmo por la afición.",
+    gradient: "from-cyan-950 via-slate-900/80 to-[#050914]",
+    badge: "Competencia",
   },
   {
     id: "gal-4",
     category: "PREMIACIONES",
-    title: "Trofeo Oficial FUTSALBA",
-    caption: "La máxima presea dorada que se disputará en la Gran Final del Torneo 2026.",
-    aspect: "col-span-1 md:col-span-2",
-    gradient: "from-amber-900/50 via-slate-900/80 to-[#050914]",
-    iconName: "Copa",
+    title: "El Trofeo Oficial de la Liga FUTSALBA",
+    caption:
+      "La máxima distinción que coronará al campeón absoluto tras una temporada de esfuerzo, estrategia y disciplina.",
+    gradient: "from-amber-950/60 via-slate-900/80 to-[#050914]",
+    badge: "Galardón",
   },
   {
     id: "gal-5",
-    category: "JORNADAS",
-    title: "Mesa Técnica en Operación",
-    caption: "Sincronización digital de actas y marcadores con tecnología Supabase.",
-    aspect: "col-span-1",
-    gradient: "from-blue-950 via-slate-900/90 to-[#050914]",
-    iconName: "Tecnología",
+    category: "EQUIPOS",
+    title: "Plantillas Oficiales Homologadas",
+    caption:
+      "Los clubes afiliados posando con su indumentaria reglamentaria y cuerpo técnico antes del pitazo inicial.",
+    gradient: "from-blue-950/80 via-slate-900/90 to-[#050914]",
+    badge: "Clubes",
   },
   {
     id: "gal-6",
-    category: "CANCHAS",
-    title: "Iluminación Profesional LED",
-    caption: "Estándares lumínicos para transmisiones de alta definición.",
-    aspect: "col-span-1",
-    gradient: "from-emerald-950/60 via-slate-900/90 to-[#050914]",
-    iconName: "Estadio",
+    category: "EVENTOS",
+    title: "Capacitación y Seminarios Técnicos",
+    caption:
+      "Jornadas de actualización sobre el reglamento de arbitraje y cronometraje de mesa con los directores de cada club.",
+    gradient: "from-slate-800/80 via-slate-900/90 to-[#050914]",
+    badge: "Formación",
   },
 ];
 
+const SPONSORS = [
+  { id: "sp-1", name: "Patrocinador Principal", role: "Sponsor Oficial", category: "Presentador de la Liga" },
+  { id: "sp-2", name: "Balón Oficial de Competición", role: "Equipamiento Técnico", category: "Proveedor Oficial" },
+  { id: "sp-3", name: "Bebida e Hidratación", role: "Salud y Nutrición Deportiva", category: "Aliado Oficial" },
+  { id: "sp-4", name: "Infraestructura & Sedes", role: "Apoyo Logístico e Instalaciones", category: "Socio Estratégico" },
+  { id: "sp-5", name: "Cobertura Audiovisual", role: "Medios y Transmisión", category: "Media Partner" },
+  { id: "sp-6", name: "Institución Colaboradora", role: "Fomento del Deporte Comunitario", category: "Aliado Institucional" },
+];
+
 export default function HomePage() {
-  const { isAuthenticated } = useFutsal();
   const [activeArticle, setActiveArticle] = useState<NewsItem | null>(null);
   const [galleryFilter, setGalleryFilter] = useState<string>("TODOS");
 
@@ -171,109 +212,78 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[#050914] text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
-      {/* Official Public Navigation Header with responsive mobile drawer */}
+      {/* 1. Header Oficial de la Liga */}
       <PublicHeader currentPath="/" />
 
-      {/* 1. HERO INSTITUCIONAL */}
-      <section className="relative overflow-hidden py-16 md:py-28 px-4 md:px-8 bg-gradient-to-b from-[#0a1226] via-[#060b14] to-[#050914] border-b border-slate-800">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[750px] h-[450px] bg-blue-600/10 rounded-full blur-[150px] pointer-events-none" />
+      {/* 2. Hero Principal Institucional */}
+      <section className="relative overflow-hidden py-20 md:py-32 px-4 md:px-8 bg-gradient-to-b from-[#091328] via-[#060c18] to-[#050914] border-b border-slate-800/80">
+        {/* Glow de fondo institucional */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[650px] md:w-[900px] h-[400px] bg-blue-600/10 rounded-full blur-[160px] pointer-events-none" />
 
-        <div className="max-w-5xl mx-auto space-y-8 relative z-10 text-center">
-          <div className="space-y-4 max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto space-y-8 relative z-10 text-center">
+          {/* Badge institucional */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/15 border border-blue-500/30 text-blue-300 text-xs font-bold tracking-widest uppercase">
+            <Shield className="w-3.5 h-3.5 text-blue-400" />
+            <span>Sitio Oficial de la Liga</span>
+          </div>
+
+          {/* Título Principal */}
+          <div className="space-y-4">
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight uppercase leading-[1.08]">
               LA PASIÓN DEL FUTSAL <br className="hidden sm:inline" /> EN TIEMPO REAL
             </h1>
 
-            <p className="text-sm md:text-base text-slate-300 font-medium max-w-2xl mx-auto leading-relaxed">
-              Portal institucional de la Liga Oficial de Fútbol Sala FUTSALBA. Organización, transparencia deportiva, desarrollo de talento y cobertura de nuestras competencias de élite.
+            <p className="text-sm md:text-base text-slate-300 font-normal max-w-2xl mx-auto leading-relaxed">
+              Portal institucional de la Liga FUTSALBA. Promoviendo la excelencia deportiva, la integridad competitiva y el desarrollo del fútbol sala bajo estándares reglamentarios oficiales.
             </p>
           </div>
 
-          {/* Call to Actions (Hero CTAs) */}
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3.5 max-w-md mx-auto">
-            {isAuthenticated ? (
-              <Link
-                href="/mi-cuenta"
-                className="w-full sm:w-auto px-7 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black tracking-wider uppercase shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
-              >
-                <Users className="w-4 h-4" />
-                MI CUENTA
-              </Link>
-            ) : (
-              <Link
-                href="/login"
-                className="w-full sm:w-auto px-7 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black tracking-wider uppercase shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
-              >
-                <LogIn className="w-4 h-4" />
-                INICIAR SESIÓN
-              </Link>
-            )}
-
+          {/* CTAs del Hero */}
+          <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
+            {/* CTA Principal: App Móvil (Próximamente) */}
             <a
-              href="#app"
-              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 text-slate-200 hover:text-white text-xs font-bold tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-md"
+              href="#app-futsalba"
+              className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-200 hover:text-white text-xs font-black tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
             >
               <Smartphone className="w-4 h-4 text-emerald-400" />
-              APP FUTSALBA — PRÓXIMAMENTE
+              <span>APP FUTSALBA — PRÓXIMAMENTE</span>
             </a>
-          </div>
 
-          {/* Quick Pillars Overview */}
-          <div className="pt-10 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto text-left text-xs">
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-1">
-              <span className="text-[10px] uppercase font-bold text-blue-400">Torneo Oficial</span>
-              <p className="font-bold text-white text-sm">12 Clubes</p>
-              <p className="text-[11px] text-slate-400">Competición regular y play-offs</p>
-            </div>
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-1">
-              <span className="text-[10px] uppercase font-bold text-emerald-400">Homologación</span>
-              <p className="font-bold text-white text-sm">Regla FIFA</p>
-              <p className="text-[11px] text-slate-400">Colegio arbitral oficial</p>
-            </div>
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-1">
-              <span className="text-[10px] uppercase font-bold text-cyan-400">Tecnología</span>
-              <p className="font-bold text-white text-sm">Mesa Digital</p>
-              <p className="text-[11px] text-slate-400">Cronometraje en vivo</p>
-            </div>
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-1">
-              <span className="text-[10px] uppercase font-bold text-amber-400">Sede Central</span>
-              <p className="font-bold text-white text-sm">Parquet Flotante</p>
-              <p className="text-[11px] text-slate-400">Capacidad para 3,500 personas</p>
-            </div>
+            {/* CTA Secundario: Conoce la Liga */}
+            <a
+              href="#la-liga"
+              className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white text-xs font-bold tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-md"
+            >
+              <span>CONOCE LA LIGA</span>
+              <ChevronRight className="w-4 h-4 text-blue-400" />
+            </a>
           </div>
         </div>
       </section>
 
-      {/* 2. SECCIÓN: ACTUALIDAD FUTSALBA */}
-      <section id="actualidad" className="scroll-mt-20 max-w-6xl w-full mx-auto px-4 md:px-8 py-16 space-y-8">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-3 border-b border-slate-800">
+      {/* 3. Sección: ACTUALIDAD FUTSALBA */}
+      <section id="actualidad" className="scroll-mt-20 max-w-6xl w-full mx-auto px-4 md:px-8 py-20 space-y-10">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-slate-800">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-widest mb-1.5">
+            <div className="inline-flex items-center gap-2 text-blue-400 text-xs font-bold uppercase tracking-widest mb-1.5">
               <Tv className="w-3.5 h-3.5" />
-              Sala de Prensa Oficial
+              <span>Comunicaciones y Medios</span>
             </div>
             <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tight">
               ACTUALIDAD FUTSALBA
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Noticias oficiales, inauguraciones, jornadas, reuniones directivas y resoluciones.
+            <p className="text-xs md:text-sm text-slate-400 mt-0.5">
+              Noticias, resoluciones reglamentarias y comunicados oficiales emitidos por la Liga.
             </p>
           </div>
-
-          <Link
-            href="/noticias"
-            className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 self-start sm:self-auto transition-colors"
-          >
-            Ver todos los comunicados <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
         </div>
 
-        {/* Editorial Big Cards */}
+        {/* Artículos de prensa */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {INITIAL_NEWS.slice(0, 3).map((news) => (
-            <div
+            <article
               key={news.id}
-              className="sports-card rounded-3xl p-6 border border-slate-800 flex flex-col justify-between space-y-4 hover:border-blue-500/40 transition-all duration-300"
+              className="sports-card rounded-3xl p-6 border border-slate-800/90 bg-slate-950/60 flex flex-col justify-between space-y-4 hover:border-blue-500/40 transition-all duration-300"
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs">
@@ -292,104 +302,128 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">{news.author}</span>
+              <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                <span className="text-[10px] text-slate-500 font-medium truncate max-w-[150px]">
+                  {news.author}
+                </span>
                 <button
+                  type="button"
                   onClick={() => setActiveArticle(news)}
                   className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
                 >
-                  LEER MÁS
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  LEER COMUNICADO
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       </section>
 
-      {/* 3. SECCIÓN: CONOCE FUTSALBA */}
-      <section id="conoce-futsalba" className="scroll-mt-20 bg-[#060b14] border-y border-slate-800 py-16 md:py-24 px-4 md:px-8">
-        <div className="max-w-6xl mx-auto space-y-12">
-          <div className="text-center max-w-3xl mx-auto space-y-2">
+      {/* 4. Sección: CONOCE FUTSALBA & PRESIDENCIA */}
+      <section id="la-liga" className="scroll-mt-20 bg-[#060b18] border-y border-slate-800/90 py-20 md:py-28 px-4 md:px-8">
+        <div className="max-w-6xl mx-auto space-y-16">
+          {/* Cabecera institucional */}
+          <div className="text-center max-w-3xl mx-auto space-y-3">
             <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
-              Institución y Propósito
+              Institución, Propósito y Gobernanza
             </span>
-            <h2 className="text-2xl md:text-4xl font-black text-white uppercase tracking-tight">
+            <h2 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tight">
               CONOCE FUTSALBA
             </h2>
             <p className="text-xs md:text-sm text-slate-400 leading-relaxed">
-              La entidad rectora del fútbol sala oficial, nacida para jerarquizar el deporte, profesionalizar la gestión de clubes y garantizar competencias transparentes y de alto rendimiento.
+              La entidad oficial orientada a estructurar, organizar y jerarquizar la práctica del fútbol sala en la región, asegurando un marco competitivo transparente y de alto rendimiento.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            {/* Left: Institutional Presentation */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="space-y-4 text-xs md:text-sm text-slate-300 leading-relaxed">
-                <p>
-                  FUTSALBA coordina de manera integral el calendario competitivo de fútbol sala profesional, nucleando a los principales clubes de la disciplina bajo un marco normativo unificado.
-                </p>
-                <p className="text-slate-400">
-                  Nuestra organización trabaja sobre tres pilares fundamentales: infraestructura moderna en microestadios homologados, capacitación continua del cuerpo arbitral y digitalización en tiempo real para que aficionados, delegados y prensa sigan cada instante del torneo con máxima certeza.
-                </p>
+          {/* Bloques Editoriales: Historia, Propósito y Valores */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 md:p-8 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                <Building2 className="w-5 h-5" />
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 text-xs">
-                <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-1.5">
-                  <span className="font-bold text-white flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-blue-400" />
-                    Propósito y Valores
-                  </span>
-                  <p className="text-[11px] text-slate-400">
-                    Fomentar el juego limpio, la disciplina deportiva y el desarrollo de nuevos talentos juveniles.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-1.5">
-                  <span className="font-bold text-white flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-emerald-400" />
-                    Estructura Federativa
-                  </span>
-                  <p className="text-[11px] text-slate-400">
-                    Comisión técnica, colegio de jueces y tribunal disciplinario bajo reglamento oficial.
-                  </p>
-                </div>
-              </div>
+              <h3 className="font-bold text-white text-base">Historia y Fundación</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                FUTSALBA nació con la visión de consolidar un torneo integral que dignifique a clubes, jugadores y técnicos, unificando criterios reglamentarios y elevando el estándar competitivo de la disciplina.
+              </p>
             </div>
 
-            {/* Right: Espacio Elegante del Presidente de la Liga */}
-            <div className="lg:col-span-5">
-              <div className="sports-card rounded-3xl p-6 md:p-8 border border-blue-500/30 shadow-2xl relative overflow-hidden space-y-5">
-                <div className="absolute top-0 right-0 w-48 h-48 bg-blue-600/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="p-6 md:p-8 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-cyan-600/20 text-cyan-400 flex items-center justify-center font-bold">
+                <Activity className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold text-white text-base">Propósito Deportivo</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Fomentar el talento atlético, proveer infraestructura moderna con pisos reglamentarios de madera flotante y garantizar un espectáculo de calidad para la afición deportiva.
+              </p>
+            </div>
 
-                <div className="flex items-center gap-4">
-                  {/* Espacio preparado para fotografía oficial del Presidente */}
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-blue-700 via-indigo-600 to-cyan-500 flex items-center justify-center font-black text-2xl text-white shadow-xl shadow-blue-600/30 shrink-0 border-2 border-blue-400/30">
-                    <Shield className="w-10 h-10 text-white" />
-                  </div>
+            <div className="p-6 md:p-8 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600/20 text-emerald-400 flex items-center justify-center font-bold">
+                <Shield className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold text-white text-base">Valores Fundamentales</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Juego limpio (Fair Play), respeto a las normas del arbitraje oficial, disciplina formativa, integridad institucional y compromiso con la juventud.
+              </p>
+            </div>
+          </div>
 
-                  <div>
-                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 border border-blue-500/30">
-                      Presidencia Oficial
-                    </span>
-                    <h3 className="text-base md:text-lg font-bold text-white mt-1">
-                      Presidencia de la Liga FUTSALBA
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      Representación Oficial de la Liga
-                    </p>
+          {/* Espacio Grande de Presidencia */}
+          <div className="rounded-3xl border border-blue-500/30 bg-gradient-to-br from-slate-900/90 via-[#071126] to-[#040814] p-8 md:p-12 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              {/* Marco Fotográfico Protocolar de Presidencia (Sin datos inventados) */}
+              <div className="lg:col-span-4 flex flex-col items-center text-center space-y-4">
+                <div className="w-44 h-44 sm:w-48 sm:h-48 rounded-3xl bg-gradient-to-tr from-slate-900 via-blue-950 to-slate-900 border-2 border-blue-400/40 shadow-2xl flex flex-col items-center justify-center p-4 relative group">
+                  <div className="w-20 h-20 rounded-2xl bg-blue-600/20 border border-blue-400/30 flex items-center justify-center mb-2">
+                    <Shield className="w-10 h-10 text-blue-300" />
                   </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">
+                    FUTSALBA
+                  </span>
+                  <span className="text-[9px] text-slate-400 uppercase tracking-wider mt-0.5">
+                    Despacho de Presidencia
+                  </span>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800/80 text-xs text-slate-300 leading-relaxed italic space-y-2">
+                <div className="space-y-1">
+                  <div className="text-xs font-black uppercase tracking-wider text-blue-400">
+                    Presidencia Institucional
+                  </div>
+                  <div className="text-lg font-black text-white">
+                    Presidente de la Liga FUTSALBA
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Conducción Oficial de la Liga
+                  </div>
+                </div>
+              </div>
+
+              {/* Mensaje Institucional del Presidente */}
+              <div className="lg:col-span-8 space-y-5">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-600/15 border border-blue-500/25 text-blue-300 text-xs font-bold uppercase tracking-wider">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Mensaje Institucional</span>
+                </div>
+
+                <blockquote className="text-sm md:text-base text-slate-200 font-normal leading-relaxed italic border-l-2 border-blue-500 pl-4 md:pl-6 space-y-3">
                   <p>
-                    &ldquo;FUTSALBA representa el esfuerzo conjunto de clubes, jugadores y dirigentes por dignificar el fútbol sala. Nuestro compromiso es garantizar un torneo ejemplar, competitivo y abierto a toda la comunidad deportiva.&rdquo;
+                    &ldquo;FUTSALBA nació con la convicción de que el fútbol sala merece una estructura formal, moderna y transparente. Cada club, cada atleta y cada partido reflejan el esfuerzo de una comunidad deportiva que sueña con competencias organizadas bajo los más rigurosos estándares.&rdquo;
                   </p>
-                </div>
+                  <p>
+                    &ldquo;Nuestra meta primordial es consolidar un torneo ejemplar, donde impere el juego limpio, la formación continua de nuestros jueces y la jerarquización de nuestras sedes. La Liga es el hogar de quienes viven este deporte con auténtica pasión.&rdquo;
+                  </p>
+                </blockquote>
 
-                <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>Asociación Oficial de Fútbol Sala</span>
-                  <span className="font-semibold text-slate-400">Gestión 2026</span>
+                <div className="pt-2 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+                  <span className="font-semibold text-slate-300">
+                    Despacho Oficial de Presidencia
+                  </span>
+                  <span className="text-blue-400 font-bold uppercase tracking-wider">
+                    Gestión Oficial 2026
+                  </span>
                 </div>
               </div>
             </div>
@@ -397,57 +431,55 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 4. SECCIÓN: NUESTRO EQUIPO */}
-      <section id="nuestro-equipo" className="scroll-mt-20 max-w-6xl w-full mx-auto px-4 md:px-8 py-16 space-y-8">
+      {/* 5. Sección: NUESTRO EQUIPO */}
+      <section id="nuestro-equipo" className="scroll-mt-20 max-w-6xl w-full mx-auto px-4 md:px-8 py-20 space-y-10">
         <div className="text-center max-w-2xl mx-auto space-y-2">
           <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
-            Cuerpo Organizativo
+            Estructura Organizativa Oficial
           </span>
           <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tight">
             NUESTRO EQUIPO
           </h2>
-          <p className="text-xs text-slate-400">
-            El personal directivo, técnico y logístico responsable de la organización de la Liga.
+          <p className="text-xs md:text-sm text-slate-400">
+            Cuerpo directivo, comisiones técnicas y personal responsable de la gestión de la Liga FUTSALBA.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {PUBLIC_STAFF.map((member) => (
             <div
               key={member.id}
-              className="sports-card rounded-3xl p-6 border border-slate-800 space-y-3.5 hover:border-blue-500/40 transition-all duration-300"
+              className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3 hover:border-blue-500/30 transition-all flex flex-col justify-between"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded bg-blue-600/15 text-blue-400 border border-blue-500/25">
-                  {member.tag}
-                </span>
-
-                <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-xs text-slate-300">
-                  {member.role.charAt(0)}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-blue-600/15 text-blue-400 border border-blue-500/25">
+                    {member.tag}
+                  </span>
+                  <span className="text-[10px] text-slate-500">{member.area}</span>
                 </div>
-              </div>
 
-              <div>
-                <h3 className="font-bold text-white text-base">
-                  {member.name}
+                <h3 className="font-bold text-white text-sm leading-snug">
+                  {member.role}
                 </h3>
-                <p className="text-xs text-blue-400 font-semibold mt-0.5">
+
+                <p className="text-[11px] font-semibold text-blue-300">
                   {member.title}
                 </p>
-              </div>
 
-              <p className="text-xs text-slate-400 leading-relaxed">
-                {member.description}
-              </p>
+                <p className="text-xs text-slate-400 leading-relaxed pt-1">
+                  {member.description}
+                </p>
+              </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* 5. SECCIÓN: GALERÍA FUTSALBA */}
-      <section id="galeria" className="scroll-mt-20 bg-[#060b14] border-t border-slate-800 py-16 md:py-24 px-4 md:px-8">
-        <div className="max-w-6xl mx-auto space-y-8">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-3 border-b border-slate-800">
+      {/* 6. Sección: GALERÍA FUTSALBA */}
+      <section id="galeria" className="scroll-mt-20 bg-[#060b18] border-t border-slate-800/90 py-20 md:py-28 px-4 md:px-8">
+        <div className="max-w-6xl mx-auto space-y-10">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-slate-800">
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
                 Archivo Visual Oficial
@@ -455,39 +487,48 @@ export default function HomePage() {
               <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tight">
                 GALERÍA FUTSALBA
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Postales de equipos, canchas, jornadas, premiaciones y la emoción en la cancha.
+              <p className="text-xs md:text-sm text-slate-400 mt-0.5">
+                Imágenes de jornadas, clubes, microestadios, inauguraciones, premiaciones y eventos oficiales.
               </p>
             </div>
 
-            {/* Filter Pills */}
+            {/* Filtros de la Galería */}
             <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-auto">
-              {["TODOS", "CANCHAS", "EQUIPOS", "JORNADAS", "PREMIACIONES"].map((cat) => (
+              {[
+                { label: "Todos", key: "TODOS" },
+                { label: "Jornadas", key: "JORNADAS" },
+                { label: "Equipos", key: "EQUIPOS" },
+                { label: "Canchas", key: "CANCHAS" },
+                { label: "Inauguraciones", key: "INAUGURACIONES" },
+                { label: "Premiaciones", key: "PREMIACIONES" },
+                { label: "Eventos", key: "EVENTOS" },
+              ].map((filter) => (
                 <button
-                  key={cat}
-                  onClick={() => setGalleryFilter(cat)}
-                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
-                    galleryFilter === cat
+                  key={filter.key}
+                  type="button"
+                  onClick={() => setGalleryFilter(filter.key)}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                    galleryFilter === filter.key
                       ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
                       : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
                   }`}
                 >
-                  {cat}
+                  {filter.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Gallery Responsive Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {/* Grid de Galería Visual */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredGallery.map((item) => (
               <div
                 key={item.id}
-                className={`sports-card rounded-3xl p-6 border border-slate-800/90 relative overflow-hidden min-h-[220px] flex flex-col justify-end bg-gradient-to-t ${item.gradient} hover:border-blue-500/50 transition-all duration-300 group`}
+                className={`sports-card rounded-3xl p-6 border border-slate-800/90 relative overflow-hidden min-h-[240px] flex flex-col justify-end bg-gradient-to-t ${item.gradient} hover:border-blue-500/50 transition-all duration-300 group`}
               >
                 <div className="absolute top-4 left-4">
-                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-slate-300 border border-slate-700">
-                    {item.category}
+                  <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded bg-black/70 backdrop-blur-md text-blue-300 border border-blue-500/30">
+                    {item.badge}
                   </span>
                 </div>
 
@@ -505,47 +546,87 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 6. SECCIÓN: APP FUTSALBA (Promocional) */}
-      <section id="app" className="scroll-mt-20 py-20 px-4 md:px-8 bg-gradient-to-b from-[#050914] via-[#071024] to-[#050914] border-t border-slate-800">
-        <div className="max-w-4xl mx-auto text-center space-y-6">
-          <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-500/20 to-blue-600/20 border border-emerald-500/30 text-emerald-400 mx-auto flex items-center justify-center shadow-xl shadow-emerald-500/10 mb-2">
+      {/* 7. Sección: APP FUTSALBA (Promocional y Destacada) */}
+      <section
+        id="app-futsalba"
+        className="scroll-mt-20 py-20 md:py-28 px-4 md:px-8 bg-gradient-to-b from-[#050914] via-[#07132a] to-[#050914] border-t border-slate-800"
+      >
+        <div className="max-w-4xl mx-auto text-center space-y-8">
+          <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-500/20 to-blue-600/20 border border-emerald-500/30 text-emerald-400 mx-auto flex items-center justify-center shadow-xl shadow-emerald-500/10">
             <Smartphone className="w-8 h-8" />
           </div>
 
-          <div className="space-y-2 max-w-2xl mx-auto">
+          <div className="space-y-3 max-w-2xl mx-auto">
             <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
-              Próximo Lanzamiento Oficial
+              Aplicación Móvil Oficial
             </span>
-            <h2 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tight">
+            <h2 className="text-3xl md:text-5xl font-black text-white uppercase tracking-tight">
               LLEVA FUTSALBA CONTIGO
             </h2>
-            <p className="text-xs md:text-sm text-slate-300 leading-relaxed">
-              Consulta partidos, clasificación, estadísticas y toda la actualidad de la Liga desde tu dispositivo móvil.
+            <p className="text-sm md:text-base text-slate-300 leading-relaxed font-normal">
+              Partidos, resultados, clasificación, estadísticas y toda la información oficial de FUTSALBA desde tu teléfono.
             </p>
           </div>
 
-          {/* Botón Promocional Seguro (Sin enlace roto) */}
+          {/* Botón Promocional Seguro (Próximamente para Android) */}
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <div className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-slate-900 border border-slate-700/80 text-slate-200 text-xs font-black tracking-wider uppercase shadow-xl">
+            <div className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-slate-900 border border-emerald-500/40 text-slate-100 text-xs font-black tracking-widest uppercase shadow-xl">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              PRÓXIMAMENTE PARA ANDROID
+              <span>PRÓXIMAMENTE PARA ANDROID</span>
             </div>
           </div>
 
-          <p className="text-[11px] text-slate-500 max-w-md mx-auto">
-            Estamos optimizando la versión APK para brindarte alertas de goles, faltas en directo y el minuto a minuto en la palma de tu mano.
+          <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+            La app oficial será el espacio exclusivo para el seguimiento en vivo de cada jornada, tablas de posiciones en tiempo real y notificaciones al instante.
           </p>
         </div>
       </section>
 
-      {/* Article Modal (para leer noticias completas de ACTUALIDAD) */}
+      {/* 8. Sección: PATROCINADORES OFICIALES */}
+      <section className="py-16 md:py-20 px-4 md:px-8 bg-[#040711] border-t border-slate-800/80">
+        <div className="max-w-6xl mx-auto space-y-8">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
+              Alianzas y Respaldo Institucional
+            </span>
+            <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">
+              PATROCINADORES Y ALIADOS OFICIALES
+            </h2>
+            <p className="text-xs text-slate-400">
+              Marcas e instituciones comprometidas con el impulso del fútbol sala reglamentario.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {SPONSORS.map((sp) => (
+              <div
+                key={sp.id}
+                className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80 text-center space-y-1.5 flex flex-col items-center justify-center min-h-[100px] hover:border-slate-700 transition-colors"
+              >
+                <div className="w-7 h-7 rounded-lg bg-blue-600/10 text-blue-400 flex items-center justify-center text-xs font-black">
+                  F
+                </div>
+                <div className="text-xs font-bold text-white leading-tight">
+                  {sp.name}
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  {sp.role}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Modal para lectura de comunicado oficial */}
       {activeArticle && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="sports-card rounded-3xl max-w-2xl w-full p-6 md:p-8 border border-slate-700 shadow-2xl relative space-y-5 animate-in fade-in zoom-in-95 duration-150">
             <button
+              type="button"
               onClick={() => setActiveArticle(null)}
               className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors"
-              aria-label="Cerrar modal"
+              aria-label="Cerrar comunicado"
             >
               <X className="w-4 h-4" />
             </button>
@@ -564,63 +645,127 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 text-xs md:text-sm text-slate-300 leading-relaxed space-y-3">
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs md:text-sm text-slate-300 leading-relaxed space-y-3 max-h-[60vh] overflow-y-auto">
               <p className="font-semibold text-slate-200">{activeArticle.summary}</p>
-              <p className="text-slate-400">{activeArticle.content}</p>
+              <p className="text-slate-400 whitespace-pre-line">{activeArticle.content}</p>
             </div>
 
             <div className="flex justify-end pt-2">
               <button
+                type="button"
                 onClick={() => setActiveArticle(null)}
                 className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md shadow-blue-600/30"
               >
-                Cerrar
+                Cerrar Comunicado
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Official Footer */}
-      <footer className="mt-auto border-t border-slate-800/80 bg-[#03060d] py-12 px-4 md:px-8 text-xs text-slate-400">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white text-sm">
-              F
+      {/* 9. FOOTER INSTITUCIONAL */}
+      <footer className="mt-auto border-t border-slate-800/80 bg-[#02050b] py-14 px-4 md:px-8 text-xs text-slate-400">
+        <div className="max-w-6xl mx-auto space-y-10">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+            {/* Identidad */}
+            <div className="md:col-span-5 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-black text-white text-lg shadow-lg shadow-blue-500/20">
+                  F
+                </div>
+                <div>
+                  <div className="font-black text-base text-white tracking-wider">
+                    FUTSALBA
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">
+                    Liga Oficial de Fútbol Sala
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
+                Asociación rectora del fútbol sala reglamentario. Compromiso con el deporte formativo, la alta competencia y la transparencia organizativa.
+              </p>
             </div>
-            <div>
-              <div className="font-bold text-white">FUTSALBA MANAGER</div>
-              <div className="text-[10px] text-slate-500">
-                © 2026 Asociación Oficial de Fútbol Sala. Todos los derechos reservados.
+
+            {/* Navegación y Secciones */}
+            <div className="md:col-span-4 space-y-2">
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Secciones Oficiales
+              </div>
+              <ul className="space-y-1.5 text-xs text-slate-400">
+                <li>
+                  <a href="/#" className="hover:text-blue-400 transition-colors">
+                    Inicio
+                  </a>
+                </li>
+                <li>
+                  <a href="/#la-liga" className="hover:text-blue-400 transition-colors">
+                    La Liga e Historia
+                  </a>
+                </li>
+                <li>
+                  <a href="/#actualidad" className="hover:text-blue-400 transition-colors">
+                    Actualidad y Sala de Prensa
+                  </a>
+                </li>
+                <li>
+                  <a href="/#galeria" className="hover:text-blue-400 transition-colors">
+                    Galería Oficial
+                  </a>
+                </li>
+                <li>
+                  <a href="/#app-futsalba" className="hover:text-blue-400 transition-colors">
+                    App Móvil FUTSALBA
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Redes y Contacto */}
+            <div className="md:col-span-3 space-y-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Contacto y Redes
+              </div>
+
+              <div className="space-y-2">
+                <a
+                  href="https://instagram.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-xs text-slate-300 hover:text-white transition-colors"
+                >
+                  <InstagramIcon className="w-4 h-4 text-pink-400" />
+                  <span>Instagram Oficial @futsalba</span>
+                </a>
+
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <Mail className="w-4 h-4 text-blue-400" />
+                  <span>contacto@futsalba.com</span>
+                </div>
+              </div>
+
+              {/* Acceso discreto para árbitros/mesa/administración */}
+              <div className="pt-2">
+                <Link
+                  href="/acceso-institucional"
+                  className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  <Lock className="w-3 h-3 text-slate-600" />
+                  <span>Acceso Institucional (Mesa y Personal)</span>
+                </Link>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-6 text-xs">
-            <Link href="/#actualidad" className="hover:text-blue-400 transition-colors">
-              Actualidad
-            </Link>
-            <Link href="/#conoce-futsalba" className="hover:text-blue-400 transition-colors">
-              Conoce FUTSALBA
-            </Link>
-            <Link href="/#nuestro-equipo" className="hover:text-blue-400 transition-colors">
-              Nuestro Equipo
-            </Link>
-            <Link href="/#galeria" className="hover:text-blue-400 transition-colors">
-              Galería
-            </Link>
-            <Link href="/#app" className="hover:text-blue-400 transition-colors">
-              App
-            </Link>
-            {isAuthenticated ? (
-              <Link href="/mi-cuenta" className="hover:text-blue-400 transition-colors font-bold">
-                Mi Cuenta
-              </Link>
-            ) : (
-              <Link href="/login" className="hover:text-blue-400 transition-colors font-bold">
-                Iniciar Sesión
-              </Link>
-            )}
+          {/* Barra inferior */}
+          <div className="pt-6 border-t border-slate-900 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
+            <div>
+              © 2026 FUTSALBA — Sitio Web Oficial de la Liga. Todos los derechos reservados.
+            </div>
+            <div className="text-slate-500">
+              Desarrollado para la excelencia del fútbol sala.
+            </div>
           </div>
         </div>
       </footer>

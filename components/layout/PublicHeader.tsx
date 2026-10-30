@@ -29,7 +29,7 @@ interface PublicHeaderProps {
 
 export function PublicHeader({ currentPath = "/" }: PublicHeaderProps) {
   const router = useRouter();
-  const { user, isAuthenticated, currentUserRole, logout } = useFutsal();
+  const { user, isAuthenticated, logout } = useFutsal();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -38,14 +38,8 @@ export function PublicHeader({ currentPath = "/" }: PublicHeaderProps) {
     router.replace("/");
   };
 
-  const displayName =
-    user?.user_metadata?.full_name ||
-    user?.user_metadata?.name ||
-    user?.email?.split("@")[0] ||
-    "Aficionado";
-
   return (
-    <header className="sticky top-0 z-40 bg-[#070d1c]/95 backdrop-blur-md border-b border-slate-800/80">
+    <header className="sticky top-0 z-40 bg-[#050914]/95 backdrop-blur-md border-b border-slate-800/80">
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-3.5 flex items-center justify-between">
         {/* Brand Logo & Name */}
         <Link
@@ -64,121 +58,65 @@ export function PublicHeader({ currentPath = "/" }: PublicHeaderProps) {
               </span>
             </div>
             <div className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">
-              Liga Profesional de Fútbol Sala
+              Liga Oficial de Fútbol Sala
             </div>
           </div>
         </Link>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-slate-300">
+        {/* Desktop Navigation: Institutional only */}
+        <nav className="hidden md:flex items-center gap-7 text-xs font-bold uppercase tracking-wider text-slate-300">
           <Link
             href="/"
-            className={`transition-colors ${currentPath === "/" ? "text-blue-400" : "hover:text-blue-400"}`}
+            className={`transition-colors ${currentPath === "/" ? "text-blue-400 font-extrabold" : "hover:text-blue-400"}`}
           >
             Inicio
           </Link>
 
-          {isAuthenticated ? (
-            <>
-              <Link
-                href="/partidos"
-                className={`transition-colors ${currentPath === "/partidos" ? "text-blue-400" : "hover:text-blue-400"}`}
-              >
-                Partidos
-              </Link>
-              <Link
-                href="/clasificacion"
-                className={`transition-colors ${currentPath === "/clasificacion" ? "text-blue-400" : "hover:text-blue-400"}`}
-              >
-                Clasificación
-              </Link>
-              <Link
-                href="/estadisticas"
-                className={`transition-colors ${currentPath === "/estadisticas" ? "text-blue-400" : "hover:text-blue-400"}`}
-              >
-                Estadísticas
-              </Link>
-              <Link
-                href="/noticias"
-                className={`transition-colors ${currentPath === "/noticias" ? "text-blue-400" : "hover:text-blue-400"}`}
-              >
-                Noticias
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/#actualidad"
-                className="hover:text-blue-400 transition-colors"
-              >
-                Actualidad
-              </Link>
-              <Link
-                href="/#conoce-futsalba"
-                className="hover:text-blue-400 transition-colors"
-              >
-                Conoce FUTSALBA
-              </Link>
-              <Link
-                href="/#nuestro-equipo"
-                className="hover:text-blue-400 transition-colors"
-              >
-                Nuestro Equipo
-              </Link>
-              <Link
-                href="/#galeria"
-                className="hover:text-blue-400 transition-colors"
-              >
-                Galería
-              </Link>
-              <Link
-                href="/#app"
-                className="hover:text-blue-400 transition-colors"
-              >
-                App
-              </Link>
-            </>
-          )}
+          <a
+            href="/#la-liga"
+            className="hover:text-blue-400 transition-colors"
+          >
+            La Liga
+          </a>
+
+          <a
+            href="/#actualidad"
+            className="hover:text-blue-400 transition-colors"
+          >
+            Actualidad
+          </a>
+
+          <a
+            href="/#galeria"
+            className="hover:text-blue-400 transition-colors"
+          >
+            Galería
+          </a>
+
+          <a
+            href="/#app-futsalba"
+            className="hover:text-blue-400 transition-colors text-emerald-400"
+          >
+            App FUTSALBA
+          </a>
         </nav>
 
-        {/* Desktop Auth State */}
+        {/* Desktop Header Action */}
         <div className="hidden md:flex items-center gap-3">
-          {isAuthenticated ? (
-            <Link
-              href="/mi-cuenta"
-              className={`px-4 py-2 rounded-xl text-xs font-black tracking-wider uppercase border shadow-md transition-all flex items-center gap-1.5 ${
-                currentPath === "/mi-cuenta"
-                  ? "bg-blue-600 text-white border-blue-500 shadow-blue-600/30"
-                  : "bg-slate-800 hover:bg-slate-700 text-white border-slate-700 hover:border-slate-600"
-              }`}
-            >
-              <Users className="w-3.5 h-3.5 text-blue-400" />
-              MI CUENTA
-            </Link>
-          ) : (
-            <Link
-              href="/login"
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black tracking-wider uppercase shadow-lg shadow-blue-600/30 transition-all flex items-center gap-1.5"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              INICIAR SESIÓN
-            </Link>
-          )}
+          <a
+            href="/#app-futsalba"
+            className="px-4 py-2 rounded-xl bg-blue-600/15 hover:bg-blue-600/25 border border-blue-500/30 text-blue-300 hover:text-white text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-blue-400" />
+            <span>App FUTSALBA</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-300 font-black">
+              PRÓX
+            </span>
+          </a>
         </div>
 
-        {/* Mobile Controls (Menu Toggle & Direct Account Icon if logged in) */}
+        {/* Mobile Menu Toggle Button */}
         <div className="flex md:hidden items-center gap-2">
-          {isAuthenticated && (
-            <Link
-              href="/mi-cuenta"
-              onClick={() => setMobileMenuOpen(false)}
-              className="p-2 rounded-xl bg-slate-800 text-blue-400 border border-slate-700 text-xs font-bold flex items-center gap-1"
-              aria-label="Ir a mi cuenta"
-            >
-              <User className="w-4 h-4" />
-            </Link>
-          )}
-
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -194,13 +132,12 @@ export function PublicHeader({ currentPath = "/" }: PublicHeaderProps) {
         </div>
       </div>
 
-      {/* Mobile Drawer Navigation */}
+      {/* Mobile Drawer Navigation (320px - 430px compatible) */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#070d1c]/98 backdrop-blur-xl border-t border-slate-800 px-4 py-5 space-y-4 shadow-2xl animate-in slide-in-from-top-2 duration-200 max-h-[85vh] overflow-y-auto">
-          {/* Public Navigation Links */}
+        <div className="md:hidden bg-[#050914]/98 backdrop-blur-xl border-t border-slate-800 px-4 py-5 space-y-4 shadow-2xl animate-in slide-in-from-top-2 duration-200">
           <div className="space-y-1">
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-3 pb-1">
-              Navegación Oficial
+              Navegación Institucional
             </div>
 
             <Link
@@ -212,143 +149,44 @@ export function PublicHeader({ currentPath = "/" }: PublicHeaderProps) {
               Inicio
             </Link>
 
-            {isAuthenticated ? (
-              <>
-                <Link
-                  href="/partidos"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
-                >
-                  <Calendar className="w-4 h-4 text-emerald-400" />
-                  Partidos
-                </Link>
+            <a
+              href="/#la-liga"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
+            >
+              <Shield className="w-4 h-4 text-blue-400" />
+              La Liga
+            </a>
 
-                <Link
-                  href="/clasificacion"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
-                >
-                  <Trophy className="w-4 h-4 text-amber-400" />
-                  Clasificación
-                </Link>
+            <a
+              href="/#actualidad"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
+            >
+              <Tv className="w-4 h-4 text-cyan-400" />
+              Actualidad
+            </a>
 
-                <Link
-                  href="/estadisticas"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
-                >
-                  <Activity className="w-4 h-4 text-cyan-400" />
-                  Estadísticas
-                </Link>
+            <a
+              href="/#galeria"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
+            >
+              <ImageIcon className="w-4 h-4 text-indigo-400" />
+              Galería
+            </a>
 
-                <Link
-                  href="/noticias"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
-                >
-                  <Tv className="w-4 h-4 text-indigo-400" />
-                  Noticias
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/#actualidad"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
-                >
-                  <Tv className="w-4 h-4 text-indigo-400" />
-                  Actualidad
-                </Link>
-
-                <Link
-                  href="/#conoce-futsalba"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
-                >
-                  <Info className="w-4 h-4 text-blue-400" />
-                  Conoce FUTSALBA
-                </Link>
-
-                <Link
-                  href="/#nuestro-equipo"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
-                >
-                  <Shield className="w-4 h-4 text-amber-400" />
-                  Nuestro Equipo
-                </Link>
-
-                <Link
-                  href="/#galeria"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
-                >
-                  <ImageIcon className="w-4 h-4 text-cyan-400" />
-                  Galería
-                </Link>
-
-                <Link
-                  href="/#app"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:text-white hover:bg-slate-800/60 transition-colors text-xs font-bold uppercase tracking-wider"
-                >
-                  <Smartphone className="w-4 h-4 text-emerald-400" />
-                  App FUTSALBA
-                </Link>
-              </>
-            )}
-          </div>
-
-          {/* User Account Section */}
-          <div className="pt-3 border-t border-slate-800/80 space-y-2">
-            {isAuthenticated ? (
-              <>
-                <div className="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-blue-600/30 text-blue-400 flex items-center justify-center font-bold text-xs uppercase">
-                      {displayName.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white capitalize leading-tight">
-                        {displayName}
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        {currentUserRole === "PUBLICO" ? "Aficionado Oficial" : currentUserRole}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <Link
-                  href="/mi-cuenta"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
-                >
-                  <User className="w-4 h-4" />
-                  Ver Mi Cuenta
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full py-2.5 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Cerrar Sesión
-                </button>
-              </>
-            ) : (
-              <Link
-                href="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
-              >
-                <LogIn className="w-4 h-4" />
-                INICIAR SESIÓN / REGISTRARSE
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            )}
+            <a
+              href="/#app-futsalba"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-emerald-400 hover:bg-emerald-500/10 transition-colors text-xs font-bold uppercase tracking-wider"
+            >
+              <Smartphone className="w-4 h-4 text-emerald-400" />
+              App FUTSALBA
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold ml-auto">
+                Próximamente
+              </span>
+            </a>
           </div>
         </div>
       )}
