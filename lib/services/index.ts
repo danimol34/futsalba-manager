@@ -8,3 +8,4 @@ export * from "./venues";
 export * from "./staff";
 export * from "./settings";
 export * from "./standingsAdjustments";
+export * from "./referees";

@@ -56,6 +56,7 @@ import {
   matchdaysService,
   venuesService,
   standingsAdjustmentsService,
+  refereesService,
 } from "@/lib/services";
 import { isUUID } from "@/lib/utils/validators";
 import { publicSportsService } from "@/lib/services/publicSports";
@@ -75,6 +76,8 @@ import {
   VenueInsert,
   VenueUpdate,
   settingsService,
+  RefereeInsert,
+  RefereeUpdate,
 } from "@/lib/services";
 import { liveMatchService } from "@/lib/services/liveMatch";
 
@@ -102,6 +105,7 @@ interface FutsalContextType {
   refetchCompetitions: () => Promise<void>;
   refetchMatchdays: () => Promise<void>;
   refetchVenues: () => Promise<void>;
+  refetchReferees: () => Promise<void>;
 
   // Data Collections (Supabase as source of truth)
   teams: Team[];
@@ -146,6 +150,11 @@ interface FutsalContextType {
   createVenue: (venue: VenueInsert) => Promise<Venue>;
   updateVenue: (id: string, updates: VenueUpdate) => Promise<Venue>;
   deleteVenue: (id: string) => Promise<void>;
+
+  // Referees Mutations
+  addReferee: (referee: RefereeInsert) => Promise<Referee>;
+  updateReferee: (id: string, updates: RefereeUpdate) => Promise<Referee>;
+  deleteReferee: (id: string) => Promise<void>;
 
   // Live Match Desk & Timer Controls
   addMatchEvent: (event: Omit<MatchEvent, "id" | "created_at">) => Promise<void>;
@@ -481,6 +490,16 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refetchReferees = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const data = await refereesService.getReferees(currentUserRole);
+      setReferees(data);
+    } catch (e) {
+      console.warn("Notice: could not refetch referees from Supabase:", e);
+    }
+  }, [currentUserRole]);
+
   const refetchLeagueSettings = useCallback(async () => {
     if (!isSupabaseConfigured) return;
     try {
@@ -505,6 +524,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         refetchCompetitions(),
         refetchMatchdays(),
         refetchVenues(),
+        refetchReferees(),
         refetchLeagueSettings(),
         refetchStandingsAdjustments(),
       ]);
@@ -519,6 +539,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     refetchCompetitions,
     refetchMatchdays,
     refetchVenues,
+    refetchReferees,
     refetchLeagueSettings,
     refetchStandingsAdjustments,
   ]);
@@ -543,6 +564,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
           competitionsRes,
           matchdaysRes,
           venuesRes,
+          refereesRes,
           settingsRes,
         ] = await Promise.allSettled([
           isStaff ? teamsService.getTeams() : publicSportsService.getPublicTeams(),
@@ -552,6 +574,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
           competitionsService.getCompetitions(),
           matchdaysService.getMatchdays(),
           venuesService.getVenues(),
+          refereesService.getReferees(currentUserRole),
           settingsService.getLeagueSettings(),
         ]);
 
@@ -580,6 +603,9 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         }
         if (venuesRes.status === "fulfilled") {
           setVenues(venuesRes.value);
+        }
+        if (refereesRes.status === "fulfilled") {
+          setReferees(refereesRes.value);
         }
         if (settingsRes.status === "fulfilled" && settingsRes.value) {
           const loadedSettings = { ...settingsRes.value };
@@ -666,6 +692,13 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
           refetchVenues();
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "referees" },
+        () => {
+          refetchReferees();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -678,6 +711,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     refetchSeasons,
     refetchCompetitions,
     refetchVenues,
+    refetchReferees,
   ]);
 
   // Live match clock runner (1 second interval)
@@ -1145,6 +1179,71 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     setVenues((prev) => prev.filter((v) => v.id !== id));
   };
 
+  // REFEREES MUTATIONS
+  const addReferee = async (refereeData: RefereeInsert): Promise<Referee> => {
+    if (isSupabaseConfigured) {
+      const created = await refereesService.createReferee(refereeData);
+      setReferees((prev) => [created, ...prev.filter((r) => r.id !== created.id)]);
+      return created;
+    }
+    const localNew: Referee = {
+      id: `ref-${Date.now()}`,
+      full_name: refereeData.full_name,
+      category: refereeData.category || "PRINCIPAL",
+      photo_url: refereeData.photo_url || undefined,
+      phone: refereeData.phone || undefined,
+      email: refereeData.email || undefined,
+      status: refereeData.status !== false,
+      matches_officiated: 0,
+    };
+    setReferees((prev) => [localNew, ...prev]);
+    return localNew;
+  };
+
+  const updateReferee = async (id: string, updates: RefereeUpdate): Promise<Referee> => {
+    if (isSupabaseConfigured) {
+      const updated = await refereesService.updateReferee(id, updates);
+      setReferees((prev) => prev.map((r) => (r.id === id ? updated : r)));
+      return updated;
+    }
+    let updatedLocal: Referee = {
+      id,
+      full_name: updates.full_name || "Árbitro",
+      category: updates.category || "PRINCIPAL",
+      photo_url: updates.photo_url || undefined,
+      phone: updates.phone || undefined,
+      email: updates.email || undefined,
+      status: updates.status !== false,
+      matches_officiated: 0,
+    };
+    setReferees((prev) =>
+      prev.map((r) => {
+        if (r.id === id) {
+          updatedLocal = {
+            ...r,
+            ...updates,
+            category: updates.category !== undefined ? (updates.category || undefined) : r.category,
+            photo_url: updates.photo_url !== undefined ? (updates.photo_url || undefined) : r.photo_url,
+            phone: updates.phone !== undefined ? (updates.phone || undefined) : r.phone,
+            email: updates.email !== undefined ? (updates.email || undefined) : r.email,
+          };
+          return updatedLocal;
+        }
+        return r;
+      })
+    );
+    return updatedLocal;
+  };
+
+  const deleteReferee = async (id: string): Promise<void> => {
+    if (isSupabaseConfigured) {
+      await refereesService.deactivateReferee(id);
+      setReferees((prev) => prev.map((r) => (r.id === id ? { ...r, status: false } : r)));
+      return;
+    }
+    setReferees((prev) => prev.filter((r) => r.id !== id));
+  };
+
   // LIVE MATCH EVENTS
   const addMatchEvent = useCallback(
     async (eventData: Omit<MatchEvent, "id" | "created_at">) => {
@@ -1485,6 +1584,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         refetchCompetitions,
         refetchMatchdays,
         refetchVenues,
+        refetchReferees,
         refetchLeagueSettings,
 
         teams,
@@ -1526,6 +1626,10 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         createVenue,
         updateVenue,
         deleteVenue,
+
+        addReferee,
+        updateReferee,
+        deleteReferee,
 
         addMatchEvent,
         deleteMatchEvent,
