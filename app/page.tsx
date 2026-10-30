@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { INITIAL_NEWS, NewsItem } from "@/app/noticias/page";
 import {
@@ -20,7 +19,6 @@ import {
   Users2,
   CalendarDays,
   FileText,
-  Lock,
   Sparkles,
 } from "lucide-react";
 
@@ -743,17 +741,6 @@ export default function HomePage() {
                   <Mail className="w-4 h-4 text-blue-400" />
                   <span>contacto@futsalba.com</span>
                 </div>
-              </div>
-
-              {/* Acceso discreto para árbitros/mesa/administración */}
-              <div className="pt-2">
-                <Link
-                  href="/acceso-institucional"
-                  className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  <Lock className="w-3 h-3 text-slate-600" />
-                  <span>Acceso Institucional (Mesa y Personal)</span>
-                </Link>
               </div>
             </div>
           </div>
