@@ -1034,50 +1034,41 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
 
   // MATCH MUTATIONS (Supabase source of truth)
   const addMatch = async (matchData: MatchInsert): Promise<Match> => {
-    if (isSupabaseConfigured) {
-      const created = await matchesService.createMatch(matchData);
-      setMatches((prev) => [created, ...prev.filter((m) => m.id !== created.id)]);
-      return created;
-    }
-    const localMatch: Match = {
-      id: `match-${Date.now()}`,
-      home_team_id: matchData.home_team_id,
-      away_team_id: matchData.away_team_id,
-      match_date: matchData.match_date,
-      kickoff_time: matchData.kickoff_time || "19:00:00",
-      status: "PROGRAMADO",
-      home_score: 0,
-      away_score: 0,
-      home_fouls: 0,
-      away_fouls: 0,
-      home_timeouts: 0,
-      away_timeouts: 0,
-      period: 1,
-      match_clock_seconds: 1200,
-      created_at: new Date().toISOString(),
-    };
-    setMatches((prev) => [localMatch, ...prev]);
-    return localMatch;
+    const created = await matchesService.createMatch(matchData);
+    setMatches((prev) => [created, ...prev.filter((m) => m.id !== created.id)]);
+    return created;
   };
 
   const updateMatch = async (id: string, updates: MatchUpdate): Promise<Match> => {
-    if (isSupabaseConfigured) {
-      const updated = await matchesService.updateMatch(id, updates);
-      setMatches((prev) => prev.map((m) => (m.id === id ? updated : m)));
-      return updated;
-    }
-    setMatches((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, ...updates, updated_at: new Date().toISOString() } : m))
-    );
-    const found = matches.find((m) => m.id === id);
-    return { ...(found || {}), ...updates } as Match;
+    const updated = await matchesService.updateMatch(id, updates);
+    setMatches((prev) => prev.map((m) => (m.id === id ? updated : m)));
+    await Promise.allSettled([refetchMatches(), refetchMatchdays()]);
+    return updated;
   };
 
   const deleteMatch = async (id: string): Promise<void> => {
-    if (isSupabaseConfigured) {
-      await matchesService.deleteMatch(id);
+    const target = matches.find((m) => m.id === id);
+    const hasLocalEvents = matchEvents.some((e) => e.match_id === id);
+    const hasLocalSanctions = sanctions.some((s) => s.match_id === id);
+    const hasScoresOrActivity =
+      target &&
+      (target.status !== "PROGRAMADO" ||
+        (target.home_score ?? 0) > 0 ||
+        (target.away_score ?? 0) > 0 ||
+        (target.home_fouls ?? 0) > 0 ||
+        (target.away_fouls ?? 0) > 0);
+
+    if (hasLocalEvents || hasLocalSanctions || hasScoresOrActivity) {
+      const err: any = new Error(
+        "No se puede eliminar este partido porque ya contiene información oficial."
+      );
+      err.code = "MATCH_HAS_OFFICIAL_DATA";
+      throw err;
     }
+
+    await matchesService.deleteMatch(id);
     setMatches((prev) => prev.filter((m) => m.id !== id));
+    await Promise.allSettled([refetchMatches(), refetchMatchdays()]);
   };
 
   const startMatch = async (id: string): Promise<Match> => {

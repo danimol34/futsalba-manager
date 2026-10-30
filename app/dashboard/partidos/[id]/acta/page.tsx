@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useRef } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
+import React from "react";
+import { useParams, useRouter } from "next/navigation";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { TeamLogo } from "@/components/sports/TeamLogo";
@@ -10,6 +9,7 @@ import {
   FileText,
   Printer,
   ArrowLeft,
+  X,
   CheckCircle2,
   Calendar,
   MapPin,
@@ -20,6 +20,7 @@ import {
 
 export default function MatchActaPage() {
   const params = useParams();
+  const router = useRouter();
   const matchId = params?.id as string;
 
   const { matches, teams, venues, matchdays, referees, matchEvents, players } = useFutsal();
@@ -45,6 +46,20 @@ export default function MatchActaPage() {
     window.print();
   };
 
+  const handleSafeBack = () => {
+    if (typeof window !== "undefined") {
+      const ref = document.referrer || "";
+      if (
+        window.history.length > 1 &&
+        ref.startsWith(window.location.origin)
+      ) {
+        router.back();
+        return;
+      }
+    }
+    router.push(`/dashboard/partidos/${match?.id || ""}/live`);
+  };
+
   if (!match) {
     return (
       <DashboardLayout>
@@ -57,22 +72,36 @@ export default function MatchActaPage() {
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Navigation & Print Action */}
-        <div className="flex items-center justify-between no-print">
-          <Link
-            href={`/dashboard/partidos/${match.id}/live`}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Volver al partido
-          </Link>
-
+        <div className="flex items-center justify-between gap-3 no-print">
           <button
-            onClick={handlePrint}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all"
+            type="button"
+            onClick={handleSafeBack}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-all active:scale-95 min-h-[42px] touch-manipulation"
           >
-            <Printer className="w-4 h-4" />
-            Imprimir / Guardar en PDF
+            <ArrowLeft className="w-4 h-4 text-blue-400" />
+            <span>← Volver</span>
           </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all min-h-[42px]"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Imprimir / Guardar en PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSafeBack}
+              aria-label="Cerrar acta del partido"
+              title="Cerrar y volver"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center border border-slate-700 transition-all active:scale-95 touch-manipulation"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Printable Official Match Sheet */}

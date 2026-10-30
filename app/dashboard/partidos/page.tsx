@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { MatchCard } from "@/components/sports/MatchCard";
+import { EditMatchModal } from "@/components/match/EditMatchModal";
+import { DeleteMatchModal } from "@/components/match/DeleteMatchModal";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { MatchStatus } from "@/types";
+import { Match } from "@/types";
 import {
   Swords,
   Plus,
@@ -27,6 +29,24 @@ export default function MatchesListPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [matchdayFilter, setMatchdayFilter] = useState<string>("ALL");
   const [teamFilter, setTeamFilter] = useState<string>("ALL");
+  const [editingMatch, setEditingMatch] = useState<Match | null>(null);
+  const [deletingMatch, setDeletingMatch] = useState<Match | null>(null);
+
+  const handleOpenEditMatch = useCallback((match: Match) => {
+    setEditingMatch(match);
+  }, []);
+
+  const handleCloseEditMatch = useCallback(() => {
+    setEditingMatch(null);
+  }, []);
+
+  const handleOpenDeleteMatch = useCallback((match: Match) => {
+    setDeletingMatch(match);
+  }, []);
+
+  const handleCloseDeleteMatch = useCallback(() => {
+    setDeletingMatch(null);
+  }, []);
 
   const filteredMatches = useMemo(() => {
     return matches.filter((m) => {
@@ -149,10 +169,29 @@ export default function MatchesListPage() {
           /* Matches list */
           <div className="space-y-4">
             {filteredMatches.map((match) => (
-              <MatchCard key={match.id} match={match} />
+              <MatchCard
+                key={match.id}
+                match={match}
+                onEdit={handleOpenEditMatch}
+                onDelete={handleOpenDeleteMatch}
+              />
             ))}
           </div>
         )}
+
+        {/* Modal Editar Partido Programado */}
+        <EditMatchModal
+          isOpen={Boolean(editingMatch)}
+          match={editingMatch}
+          onClose={handleCloseEditMatch}
+        />
+
+        {/* Modal Eliminar Partido Programado */}
+        <DeleteMatchModal
+          isOpen={Boolean(deletingMatch)}
+          match={deletingMatch}
+          onClose={handleCloseDeleteMatch}
+        />
       </div>
     </DashboardLayout>
   );

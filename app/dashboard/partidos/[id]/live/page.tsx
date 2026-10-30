@@ -26,6 +26,8 @@ import {
   Flame,
   Plus,
   Minus,
+  ArrowLeft,
+  X,
 } from "lucide-react";
 
 export default function LiveMatchCenterPage() {
@@ -80,6 +82,28 @@ export default function LiveMatchCenterPage() {
     setModalOpen(true);
   };
 
+  const handleSafeBack = () => {
+    if (typeof window !== "undefined") {
+      const ref = document.referrer || "";
+      if (ref.includes("/dashboard/jornadas")) {
+        router.push("/dashboard/jornadas");
+        return;
+      }
+      if (ref.includes("/dashboard/partidos")) {
+        router.push("/dashboard/partidos");
+        return;
+      }
+      if (
+        window.history.length > 1 &&
+        ref.startsWith(window.location.origin)
+      ) {
+        router.back();
+        return;
+      }
+    }
+    router.push("/dashboard/partidos");
+  };
+
   const handleToggleTimer = () => {
     if (match.status !== "EN_VIVO") {
       changeMatchStatus(match.id, "EN_VIVO");
@@ -114,6 +138,28 @@ export default function LiveMatchCenterPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Top Back / Close Navigation Bar */}
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={handleSafeBack}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-all active:scale-95 min-h-[42px] touch-manipulation"
+          >
+            <ArrowLeft className="w-4 h-4 text-blue-400" />
+            <span>← Volver</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSafeBack}
+            aria-label="Cerrar centro de partido"
+            title="Cerrar y volver"
+            className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center border border-slate-700 transition-all active:scale-95 touch-manipulation"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
         {/* Top Control Bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-800">
           <div className="flex items-center gap-3">

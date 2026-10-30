@@ -1,32 +1,33 @@
 "use client";
 
-import React, { useState } from "react";
-import { useParams } from "next/navigation";
+import React, { useState, useEffect, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { publicSportsService } from "@/lib/services/publicSports";
 import { TeamLogo } from "@/components/sports/TeamLogo";
 import { StatusBadge } from "@/components/sports/StatusBadge";
 import { MatchTimeline } from "@/components/match/MatchTimeline";
+import { EditMatchModal } from "@/components/match/EditMatchModal";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { formatTime } from "@/lib/utils";
 import { Match, Team, MatchEvent, Player } from "@/types";
 import {
   ArrowLeft,
+  X,
+  Edit2,
   Calendar,
   Clock,
   MapPin,
   Share2,
   Tv,
-  Radio,
   Trophy,
-  Shield,
   Activity,
-  Flame,
 } from "lucide-react";
 
 export default function PublicMatchPage() {
   const params = useParams();
+  const router = useRouter();
   const matchId = params?.id as string;
 
   const {
@@ -34,8 +35,10 @@ export default function PublicMatchPage() {
     teams: storeTeams,
     venues,
     matchdays,
+    competitions,
     matchEvents: storeEvents,
     players: storePlayers,
+    currentUserRole,
   } = useFutsal();
 
   const [remoteMatch, setRemoteMatch] = useState<Match | null>(null);
@@ -43,6 +46,51 @@ export default function PublicMatchPage() {
   const [remoteTeams, setRemoteTeams] = useState<Team[]>([]);
   const [remotePlayers, setRemotePlayers] = useState<Player[]>([]);
   const [copied, setCopied] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [fallbackRoute, setFallbackRoute] = useState<string>("/partidos");
+
+  const isAdmin = ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR"].includes(
+    currentUserRole
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const from = searchParams.get("from");
+    const ref = document.referrer || "";
+
+    if (from === "jornadas" || ref.includes("/dashboard/jornadas")) {
+      setFallbackRoute("/dashboard/jornadas");
+    } else if (from === "partidos" || ref.includes("/dashboard/partidos")) {
+      setFallbackRoute("/dashboard/partidos");
+    } else {
+      setFallbackRoute("/partidos");
+    }
+  }, []);
+
+  const handleSafeBack = useCallback(() => {
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const from = searchParams.get("from");
+      if (from === "jornadas") {
+        router.push("/dashboard/jornadas");
+        return;
+      }
+      if (from === "partidos") {
+        router.push("/dashboard/partidos");
+        return;
+      }
+      const ref = document.referrer || "";
+      if (
+        window.history.length > 1 &&
+        ref.startsWith(window.location.origin)
+      ) {
+        router.back();
+        return;
+      }
+    }
+    router.push(fallbackRoute);
+  }, [router, fallbackRoute]);
 
   React.useEffect(() => {
     if (!matchId) return;
@@ -63,8 +111,9 @@ export default function PublicMatchPage() {
     return () => { isMounted = false; };
   }, [matchId]);
 
-  const match = remoteMatch || storeMatches.find((m) => m.id === matchId) || null;
-  const teams = remoteTeams.length > 0 ? remoteTeams : storeTeams;
+  const storeMatch = storeMatches.find((m) => m.id === matchId);
+  const match = storeMatch || remoteMatch || null;
+  const teams = storeTeams.length > 0 ? storeTeams : remoteTeams;
   const matchEvents = remoteEvents.length > 0 ? remoteEvents : storeEvents;
   const players = remotePlayers.length > 0 ? remotePlayers : storePlayers;
 
@@ -72,17 +121,21 @@ export default function PublicMatchPage() {
   const awayTeam = teams.find((t) => t.id === match?.away_team_id);
   const venue = venues.find((v) => v.id === match?.venue_id);
   const matchday = matchdays.find((m) => m.id === match?.matchday_id);
+  const competition = competitions.find(
+    (c) => c.id === (match?.competition_id || matchday?.competition_id)
+  );
 
   if (!match) {
     return (
       <div className="min-h-screen bg-[#060b14] text-white flex flex-col items-center justify-center p-6 space-y-4">
         <p className="text-slate-400 text-sm font-semibold">Partido no encontrado o no disponible en el fixture oficial.</p>
-        <Link
-          href="/partidos"
+        <button
+          type="button"
+          onClick={handleSafeBack}
           className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white transition-colors"
         >
-          ← Volver a Partidos
-        </Link>
+          ← Volver
+        </button>
       </div>
     );
   }
@@ -117,32 +170,55 @@ export default function PublicMatchPage() {
   return (
     <AuthGuard fallbackMessage="Verificando acceso al detalle del partido...">
       <div className="min-h-screen bg-[#060b14] text-slate-100 flex flex-col">
-      {/* Top Navigation */}
-      <header className="sticky top-0 z-30 bg-[#080f1d]/90 backdrop-blur-md border-b border-slate-800 px-4 md:px-8 py-4 flex items-center justify-between">
-        <Link
-          href="/"
-          className="flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-colors"
+      {/* Top Navigation: ← Volver a la izquierda y X a la derecha */}
+      <header className="sticky top-0 z-30 bg-[#080f1d]/95 backdrop-blur-md border-b border-slate-800 px-4 md:px-8 py-3.5 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={handleSafeBack}
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-all active:scale-95 min-h-[42px] touch-manipulation"
         >
           <ArrowLeft className="w-4 h-4 text-blue-400" />
-          Volver a la portada
-        </Link>
+          <span>← Volver</span>
+        </button>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
+          {isAdmin && match.status === "PROGRAMADO" && (
+            <button
+              type="button"
+              onClick={() => setEditModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all active:scale-95 min-h-[42px]"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              <span>EDITAR PARTIDO</span>
+            </button>
+          )}
+
           <Link
             href={`/tv/${match.id}`}
             target="_blank"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-blue-400 border border-slate-700 transition-colors"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-blue-400 border border-slate-700 transition-colors min-h-[42px]"
           >
             <Tv className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Marcador TV</span>
+            <span>Marcador TV</span>
           </Link>
 
           <button
+            type="button"
             onClick={handleShare}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-colors"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 border border-slate-700 transition-colors min-h-[42px]"
           >
             <Share2 className="w-3.5 h-3.5" />
-            {copied ? "¡Enlace copiado!" : "Compartir"}
+            <span>{copied ? "¡Enlace copiado!" : "Compartir"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSafeBack}
+            aria-label="Cerrar detalle del partido"
+            title="Cerrar y volver"
+            className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center border border-slate-700 transition-all active:scale-95 touch-manipulation"
+          >
+            <X className="w-5 h-5" />
           </button>
         </div>
       </header>
@@ -154,7 +230,10 @@ export default function PublicMatchPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-slate-800 text-xs text-slate-400">
             <div className="flex items-center gap-2 font-semibold">
               <Trophy className="w-4 h-4 text-amber-400" />
-              <span>{matchday?.name} • Liga Regular FUTSALBA 2026</span>
+              <span>
+                {matchday?.name || "Jornada"} •{" "}
+                {competition?.name || "FUTSALBA"}
+              </span>
             </div>
 
             <div className="flex items-center gap-3">
@@ -384,6 +463,14 @@ export default function PublicMatchPage() {
             </div>
           </div>
         </div>
+        {isAdmin && (
+          <EditMatchModal
+            isOpen={editModalOpen}
+            match={match}
+            onClose={() => setEditModalOpen(false)}
+            onUpdated={(updated) => setRemoteMatch(updated)}
+          />
+        )}
       </main>
       </div>
     </AuthGuard>

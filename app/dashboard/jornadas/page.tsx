@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { MatchCard } from "@/components/sports/MatchCard";
+import { EditMatchModal } from "@/components/match/EditMatchModal";
+import { DeleteMatchModal } from "@/components/match/DeleteMatchModal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { useToast } from "@/lib/context/ToastContext";
@@ -310,6 +312,8 @@ export default function MatchdaysPage() {
   const isReadOnly = currentUserRole === "PRENSA";
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingMatch, setEditingMatch] = useState<Match | null>(null);
+  const [deletingMatch, setDeletingMatch] = useState<Match | null>(null);
 
   const openCreateModal = useCallback(() => {
     setModalOpen(true);
@@ -317,6 +321,22 @@ export default function MatchdaysPage() {
 
   const closeCreateModal = useCallback(() => {
     setModalOpen(false);
+  }, []);
+
+  const handleOpenEditMatch = useCallback((match: Match) => {
+    setEditingMatch(match);
+  }, []);
+
+  const handleCloseEditMatch = useCallback(() => {
+    setEditingMatch(null);
+  }, []);
+
+  const handleOpenDeleteMatch = useCallback((match: Match) => {
+    setDeletingMatch(match);
+  }, []);
+
+  const handleCloseDeleteMatch = useCallback(() => {
+    setDeletingMatch(null);
   }, []);
 
   const handleRefreshCompetitions = useCallback(async () => {
@@ -472,7 +492,12 @@ export default function MatchdaysPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {mdMatches.map((match) => (
-                      <MatchCard key={match.id} match={match} />
+                      <MatchCard
+                        key={match.id}
+                        match={match}
+                        onEdit={handleOpenEditMatch}
+                        onDelete={handleOpenDeleteMatch}
+                      />
                     ))}
                     {mdMatches.length === 0 && (
                       <div className="md:col-span-2 text-center py-6 text-xs text-slate-500 bg-slate-900/40 rounded-2xl border border-slate-800/40">
@@ -496,6 +521,20 @@ export default function MatchdaysPage() {
           isLoadingCompetitions={isAuthLoading || isLoadingRemote || isCompetitionsLoading}
           onRefreshCompetitions={handleRefreshCompetitions}
           onCreateMatchday={createMatchday}
+        />
+
+        {/* Modal Editar Partido Programado */}
+        <EditMatchModal
+          isOpen={Boolean(editingMatch)}
+          match={editingMatch}
+          onClose={handleCloseEditMatch}
+        />
+
+        {/* Modal Eliminar Partido Programado */}
+        <DeleteMatchModal
+          isOpen={Boolean(deletingMatch)}
+          match={deletingMatch}
+          onClose={handleCloseDeleteMatch}
         />
       </div>
     </DashboardLayout>
