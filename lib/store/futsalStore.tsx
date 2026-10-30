@@ -128,6 +128,7 @@ interface FutsalContextType {
   addTeam: (team: Omit<Team, "id" | "created_at">) => Promise<Team>;
   updateTeam: (id: string, updates: Partial<Team>) => Promise<Team>;
   deleteTeam: (id: string) => Promise<void>;
+  deleteTestTeam: (id: string) => Promise<void>;
 
   // Player Mutations (Supabase synced)
   addPlayer: (player: PlayerInsert) => Promise<Player>;
@@ -138,6 +139,7 @@ interface FutsalContextType {
   addMatch: (match: MatchInsert) => Promise<Match>;
   updateMatch: (id: string, updates: MatchUpdate) => Promise<Match>;
   deleteMatch: (id: string) => Promise<void>;
+  deleteTestMatch: (id: string) => Promise<void>;
   startMatch: (id: string) => Promise<Match>;
   cancelMatch: (id: string, reason?: string) => Promise<Match>;
 
@@ -987,10 +989,45 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteTeam = async (id: string): Promise<void> => {
+    const hasTeamMatches = matches.some(
+      (m) => m.home_team_id === id || m.away_team_id === id
+    );
+    if (hasTeamMatches) {
+      const err: any = new Error(
+        "Este equipo todavía tiene partidos registrados. Elimina primero sus partidos de prueba."
+      );
+      err.code = "TEAM_HAS_MATCHES";
+      throw err;
+    }
+
     if (isSupabaseConfigured) {
       await teamsService.deleteTeam(id);
     }
     setTeams((prev) => prev.filter((t) => t.id !== id));
+    await Promise.allSettled([refetchTeams(), refetchPlayers()]);
+  };
+
+  const deleteTestTeam = async (id: string): Promise<void> => {
+    if (currentUserRole !== "SUPER_ADMIN") {
+      throw new Error(
+        "Acceso denegado: únicamente SUPER_ADMIN puede eliminar equipos de prueba."
+      );
+    }
+
+    await teamsService.deleteTestTeam(id);
+
+    setTeams((prev) => prev.filter((t) => t.id !== id));
+    setPlayers((prev) => prev.filter((p) => p.team_id !== id));
+    setSanctions((prev) => prev.filter((s) => s.team_id !== id));
+    setStandingsAdjustments((prev) => prev.filter((a) => a.team_id !== id));
+
+    await Promise.allSettled([
+      refetchTeams(),
+      refetchPlayers(),
+      refetchMatches(),
+      refetchMatchdays(),
+      refetchStandingsAdjustments(),
+    ]);
   };
 
   // PLAYER MUTATIONS (Supabase source of truth)
@@ -1047,18 +1084,27 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteMatch = async (id: string): Promise<void> => {
+    const officialTypes = new Set([
+      "goal",
+      "assist",
+      "yellow_card",
+      "red_card",
+      "foul",
+      "penalty",
+      "double_penalty",
+    ]);
     const target = matches.find((m) => m.id === id);
-    const hasLocalEvents = matchEvents.some((e) => e.match_id === id);
+    const hasLocalOfficialEvents = matchEvents.some(
+      (e) => e.match_id === id && officialTypes.has(e.event_type)
+    );
     const hasLocalSanctions = sanctions.some((s) => s.match_id === id);
-    const hasScoresOrActivity =
+    const hasScoresOrStarted =
       target &&
-      (target.status !== "PROGRAMADO" ||
+      ((target.status !== "PROGRAMADO" && target.status !== "EN_PREPARACION") ||
         (target.home_score ?? 0) > 0 ||
-        (target.away_score ?? 0) > 0 ||
-        (target.home_fouls ?? 0) > 0 ||
-        (target.away_fouls ?? 0) > 0);
+        (target.away_score ?? 0) > 0);
 
-    if (hasLocalEvents || hasLocalSanctions || hasScoresOrActivity) {
+    if (hasLocalOfficialEvents || hasLocalSanctions || hasScoresOrStarted) {
       const err: any = new Error(
         "No se puede eliminar este partido porque ya contiene información oficial."
       );
@@ -1068,6 +1114,23 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
 
     await matchesService.deleteMatch(id);
     setMatches((prev) => prev.filter((m) => m.id !== id));
+    setMatchEvents((prev) => prev.filter((e) => e.match_id !== id));
+    setLogisticsTasks((prev) => prev.filter((t) => t.match_id !== id));
+    await Promise.allSettled([refetchMatches(), refetchMatchdays()]);
+  };
+
+  const deleteTestMatch = async (id: string): Promise<void> => {
+    if (currentUserRole !== "SUPER_ADMIN") {
+      throw new Error(
+        "Acceso denegado: únicamente SUPER_ADMIN puede eliminar datos de prueba."
+      );
+    }
+
+    await matchesService.deleteTestMatch(id);
+    setMatches((prev) => prev.filter((m) => m.id !== id));
+    setMatchEvents((prev) => prev.filter((e) => e.match_id !== id));
+    setSanctions((prev) => prev.filter((s) => s.match_id !== id));
+    setLogisticsTasks((prev) => prev.filter((t) => t.match_id !== id));
     await Promise.allSettled([refetchMatches(), refetchMatchdays()]);
   };
 
@@ -1588,6 +1651,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         addTeam,
         updateTeam,
         deleteTeam,
+        deleteTestTeam,
 
         addPlayer,
         updatePlayer,
@@ -1596,6 +1660,7 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
         addMatch,
         updateMatch,
         deleteMatch,
+        deleteTestMatch,
         startMatch,
         cancelMatch,
 

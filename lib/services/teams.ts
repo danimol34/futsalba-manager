@@ -1,5 +1,14 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { isUUID } from "@/lib/utils/validators";
 import { Team } from "@/types";
+
+export interface TeamDependencyDiagnostic {
+  matches_count: number;
+  players_count: number;
+  coaches_count: number;
+  sanctions_count: number;
+  adjustments_count: number;
+}
 
 export type TeamInsert = Omit<Team, "id" | "created_at" | "updated_at"> & {
   id?: string;
@@ -105,6 +114,98 @@ export const teamsService = {
       .from("teams")
       .delete()
       .eq("id", id);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Inspect all foreign-key dependencies of a team before deletion
+   */
+  async inspectTeamDependencies(id: string): Promise<TeamDependencyDiagnostic> {
+    if (!isSupabaseConfigured || !isUUID(id)) {
+      return {
+        matches_count: 0,
+        players_count: 0,
+        coaches_count: 0,
+        sanctions_count: 0,
+        adjustments_count: 0,
+      };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc("inspect_team_dependencies", {
+        p_team_id: id,
+      });
+
+      if (!error && data && typeof data === "object") {
+        const res = data as Record<string, any>;
+        return {
+          matches_count: Number(res.matches_count ?? 0),
+          players_count: Number(res.players_count ?? 0),
+          coaches_count: Number(res.coaches_count ?? 0),
+          sanctions_count: Number(res.sanctions_count ?? 0),
+          adjustments_count: Number(res.adjustments_count ?? 0),
+        };
+      }
+    } catch {
+      // Fallback to direct count queries if RPC is not yet installed
+    }
+
+    const [matchesRes, playersRes, coachesRes, sanctionsRes, adjRes] =
+      await Promise.all([
+        supabase
+          .from("matches")
+          .select("id", { count: "exact", head: true })
+          .or(`home_team_id.eq.${id},away_team_id.eq.${id}`),
+        supabase
+          .from("players")
+          .select("id", { count: "exact", head: true })
+          .eq("team_id", id),
+        supabase
+          .from("coaches")
+          .select("id", { count: "exact", head: true })
+          .eq("team_id", id),
+        supabase
+          .from("sanctions")
+          .select("id", { count: "exact", head: true })
+          .eq("team_id", id),
+        supabase
+          .from("standings_adjustments")
+          .select("id", { count: "exact", head: true })
+          .eq("team_id", id),
+      ]);
+
+    return {
+      matches_count: matchesRes.count ?? 0,
+      players_count: playersRes.count ?? 0,
+      coaches_count: coachesRes.count ?? 0,
+      sanctions_count: sanctionsRes.count ?? 0,
+      adjustments_count: adjRes.count ?? 0,
+    };
+  },
+
+  /**
+   * SUPER_ADMIN ONLY: Delete a test team and its remaining test dependencies
+   * once all its test matches have been removed.
+   */
+  async deleteTestTeam(id: string): Promise<void> {
+    if (!isSupabaseConfigured) throw new Error("Supabase no está configurado");
+    if (!isUUID(id)) {
+      throw new Error("El identificador del equipo no es un UUID válido.");
+    }
+
+    const deps = await this.inspectTeamDependencies(id);
+    if (deps.matches_count > 0) {
+      const err: any = new Error(
+        "Este equipo todavía tiene partidos registrados. Elimina primero sus partidos de prueba."
+      );
+      err.code = "TEAM_HAS_MATCHES";
+      throw err;
+    }
+
+    const { error } = await supabase.rpc("delete_test_team", {
+      p_team_id: id,
+    });
 
     if (error) throw error;
   },

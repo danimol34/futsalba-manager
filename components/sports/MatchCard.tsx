@@ -93,16 +93,27 @@ export const MatchCard = memo(function MatchCard({
     isDashboard &&
     ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR"].includes(currentUserRole);
 
+  const officialTypes = new Set([
+    "goal",
+    "assist",
+    "yellow_card",
+    "red_card",
+    "foul",
+    "penalty",
+    "double_penalty",
+  ]);
+
   const hasOfficialData =
-    !isScheduled ||
+    (!isScheduled && match.status !== "EN_PREPARACION") ||
     (match.home_score ?? 0) > 0 ||
     (match.away_score ?? 0) > 0 ||
-    (match.home_fouls ?? 0) > 0 ||
-    (match.away_fouls ?? 0) > 0 ||
-    matchEvents.some((e) => e.match_id === match.id) ||
+    matchEvents.some(
+      (e) => e.match_id === match.id && officialTypes.has(e.event_type)
+    ) ||
     sanctions.some((s) => s.match_id === match.id);
 
-  const isDeletableScheduled = isScheduled && !hasOfficialData;
+  const isDeletableScheduled =
+    (isScheduled || match.status === "EN_PREPARACION") && !hasOfficialData;
 
   return (
     <div

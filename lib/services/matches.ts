@@ -30,6 +30,36 @@ export type MatchInsert = {
 
 export type MatchUpdate = Partial<MatchInsert>;
 
+export const OFFICIAL_MATCH_EVENT_TYPES = [
+  "goal",
+  "assist",
+  "yellow_card",
+  "red_card",
+  "foul",
+  "penalty",
+  "double_penalty",
+] as const;
+
+export interface MatchOfficialDataCheckResult {
+  hasOfficialData: boolean;
+  reason?: string;
+  reasons: string[];
+  diagnostics: {
+    status: string;
+    home_score: number;
+    away_score: number;
+    home_fouls: number;
+    away_fouls: number;
+    official_events_count: number;
+    auxiliary_events_count: number;
+    event_types: string[];
+    sanctions_count: number;
+    match_players_count: number;
+    match_referees_count: number;
+    logistics_tasks_count: number;
+  };
+}
+
 async function hydrateMatchReferees(matches: Match[]): Promise<Match[]> {
   if (!isSupabaseConfigured || matches.length === 0) return matches;
   try {
@@ -367,17 +397,47 @@ export const matchesService = {
   },
 
   /**
-   * Checks whether a match already has official information (status, scores, events, sanctions)
-   * that prevents physical deletion.
+   * Checks whether a match already has official information (status EN_VIVO/FINALIZADO,
+   * scores > 0, official match events, or linked sanctions) that prevents normal deletion.
+   *
+   * Auxiliary data on a PROGRAMADO/EN_PREPARACION match (matchday, venue, date/time,
+   * match_referees, preliminary match_players, logistics_tasks, or pre-match notes)
+   * is NOT considered official data and does not block normal deletion.
    */
   async checkMatchHasOfficialData(
     id: string
-  ): Promise<{ hasOfficialData: boolean; reason?: string }> {
+  ): Promise<MatchOfficialDataCheckResult> {
+    const emptyDiagnostics = {
+      status: "PROGRAMADO",
+      home_score: 0,
+      away_score: 0,
+      home_fouls: 0,
+      away_fouls: 0,
+      official_events_count: 0,
+      auxiliary_events_count: 0,
+      event_types: [] as string[],
+      sanctions_count: 0,
+      match_players_count: 0,
+      match_referees_count: 0,
+      logistics_tasks_count: 0,
+    };
+
     if (!isSupabaseConfigured || !isUUID(id)) {
-      return { hasOfficialData: false };
+      return {
+        hasOfficialData: false,
+        reasons: [],
+        diagnostics: emptyDiagnostics,
+      };
     }
 
-    const [matchRes, eventsRes, sanctionsRes] = await Promise.all([
+    const [
+      matchRes,
+      eventsRes,
+      sanctionsRes,
+      playersRes,
+      refereesRes,
+      logisticsRes,
+    ] = await Promise.all([
       supabase
         .from("matches")
         .select(
@@ -387,54 +447,102 @@ export const matchesService = {
         .maybeSingle(),
       supabase
         .from("match_events")
-        .select("id", { count: "exact", head: true })
+        .select("id, event_type")
         .eq("match_id", id),
       supabase
         .from("sanctions")
         .select("id", { count: "exact", head: true })
         .eq("match_id", id),
+      supabase
+        .from("match_players")
+        .select("id", { count: "exact", head: true })
+        .eq("match_id", id),
+      supabase
+        .from("match_referees")
+        .select("id", { count: "exact", head: true })
+        .eq("match_id", id),
+      supabase
+        .from("logistics_tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("match_id", id),
     ]);
 
     const matchRow = matchRes.data;
-    if (matchRow) {
-      if (matchRow.status !== "PROGRAMADO") {
-        return {
-          hasOfficialData: true,
-          reason: `El partido tiene estado ${matchRow.status}.`,
-        };
-      }
-      if (
-        (matchRow.home_score ?? 0) > 0 ||
-        (matchRow.away_score ?? 0) > 0 ||
-        (matchRow.home_fouls ?? 0) > 0 ||
-        (matchRow.away_fouls ?? 0) > 0
-      ) {
-        return {
-          hasOfficialData: true,
-          reason: "El partido ya registra goles o faltas oficiales.",
-        };
-      }
+    const allEvents = (eventsRes.data as { id: string; event_type: string }[]) || [];
+    const officialSet = new Set<string>(OFFICIAL_MATCH_EVENT_TYPES);
+
+    const officialEvents = allEvents.filter((e) => officialSet.has(e.event_type));
+    const auxiliaryEvents = allEvents.filter((e) => !officialSet.has(e.event_type));
+    const distinctEventTypes = Array.from(
+      new Set(allEvents.map((e) => e.event_type))
+    );
+
+    const sanctionsCount = sanctionsRes.count ?? 0;
+    const matchPlayersCount = playersRes.count ?? 0;
+    const matchRefereesCount = refereesRes.count ?? 0;
+    const logisticsTasksCount = logisticsRes.count ?? 0;
+
+    const status = matchRow?.status || "PROGRAMADO";
+    const homeScore = matchRow?.home_score ?? 0;
+    const awayScore = matchRow?.away_score ?? 0;
+    const homeFouls = matchRow?.home_fouls ?? 0;
+    const awayFouls = matchRow?.away_fouls ?? 0;
+
+    const reasons: string[] = [];
+
+    // 1. Estado oficial iniciado o cerrado (EN_VIVO, DESCANSO, FINALIZADO, SUSPENDIDO, CANCELADO)
+    if (status !== "PROGRAMADO" && status !== "EN_PREPARACION") {
+      reasons.push(`Estado del partido: ${status}.`);
     }
 
-    if ((eventsRes.count ?? 0) > 0) {
-      return {
-        hasOfficialData: true,
-        reason: "El partido ya tiene eventos registrados en el acta.",
-      };
+    // 2. Goles registrados en el marcador oficial
+    if (homeScore > 0 || awayScore > 0) {
+      reasons.push(
+        `Marcador con goles registrados (${homeScore} - ${awayScore}).`
+      );
     }
 
-    if ((sanctionsRes.count ?? 0) > 0) {
-      return {
-        hasOfficialData: true,
-        reason: "El partido tiene sanciones disciplinarias vinculadas.",
-      };
+    // 3. Eventos oficiales en match_events (goles, asistencias, tarjetas, faltas, penales)
+    if (officialEvents.length > 0) {
+      reasons.push(
+        `${officialEvents.length} evento(s) oficial(es) en match_events (${distinctEventTypes.join(", ")}).`
+      );
     }
 
-    return { hasOfficialData: false };
+    // 4. Sanciones disciplinarias vinculadas en sanctions
+    if (sanctionsCount > 0) {
+      reasons.push(
+        `${sanctionsCount} sanción(es) disciplinaria(s) vinculada(s) en sanctions.`
+      );
+    }
+
+    const diagnostics = {
+      status,
+      home_score: homeScore,
+      away_score: awayScore,
+      home_fouls: homeFouls,
+      away_fouls: awayFouls,
+      official_events_count: officialEvents.length,
+      auxiliary_events_count: auxiliaryEvents.length,
+      event_types: distinctEventTypes,
+      sanctions_count: sanctionsCount,
+      match_players_count: matchPlayersCount,
+      match_referees_count: matchRefereesCount,
+      logistics_tasks_count: logisticsTasksCount,
+    };
+
+    return {
+      hasOfficialData: reasons.length > 0,
+      reason: reasons[0],
+      reasons,
+      diagnostics,
+    };
   },
 
   /**
-   * Delete match from database (only if PROGRAMADO and without official data)
+   * Delete match from database (only if PROGRAMADO/EN_PREPARACION and without official data).
+   * Auxiliary records (referees, preliminary lineup, logistics tasks, pre-match notes)
+   * are cleaned safely before deleting the match.
    */
   async deleteMatch(id: string): Promise<void> {
     if (!isSupabaseConfigured) throw new Error("Supabase no está configurado");
@@ -446,13 +554,40 @@ export const matchesService = {
         "No se puede eliminar este partido porque ya contiene información oficial."
       );
       err.code = "MATCH_HAS_OFFICIAL_DATA";
+      err.reasons = check.reasons;
+      err.diagnostics = check.diagnostics;
       throw err;
     }
+
+    // Limpiar datos preliminares/auxiliares (sin eventos oficiales ni sanciones) antes del DELETE
+    await Promise.allSettled([
+      supabase.from("match_referees").delete().eq("match_id", id),
+      supabase.from("match_players").delete().eq("match_id", id),
+      supabase.from("logistics_tasks").delete().eq("match_id", id),
+      supabase.from("match_events").delete().eq("match_id", id),
+    ]);
 
     const { error } = await supabase
       .from("matches")
       .delete()
       .eq("id", id);
+
+    if (error) throw error;
+  },
+
+  /**
+   * SUPER_ADMIN ONLY: Permanently delete a test match and its related test records
+   * via the transactional RPC `public.delete_test_match(p_match_id uuid)`.
+   */
+  async deleteTestMatch(id: string): Promise<void> {
+    if (!isSupabaseConfigured) throw new Error("Supabase no está configurado");
+    if (!isUUID(id)) {
+      throw new Error("El identificador del partido no es un UUID válido.");
+    }
+
+    const { error } = await supabase.rpc("delete_test_match", {
+      p_match_id: id,
+    });
 
     if (error) throw error;
   },

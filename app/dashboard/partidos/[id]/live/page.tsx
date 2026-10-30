@@ -50,7 +50,10 @@ export default function LiveMatchCenterPage() {
 
   const isReadOnly = currentUserRole === "PRENSA";
 
-  const match = matches.find((m) => m.id === matchId) || matches[0];
+  const match =
+    matches.find((m) => m.id === matchId) ||
+    matches.find((m) => m.status === "EN_VIVO" || m.status === "DESCANSO") ||
+    matches[0];
   const homeTeam = teams.find((t) => t.id === match?.home_team_id);
   const awayTeam = teams.find((t) => t.id === match?.away_team_id);
   const venue = venues.find((v) => v.id === match?.venue_id);

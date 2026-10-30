@@ -8,6 +8,7 @@ import { TeamLogo } from "@/components/sports/TeamLogo";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/lib/context/ToastContext";
 import { formatSupabaseError } from "@/lib/utils/errorHandler";
+import { teamsService, TeamDependencyDiagnostic } from "@/lib/services/teams";
 import { Team } from "@/types";
 import {
   Shield,
@@ -21,6 +22,8 @@ import {
   Trash2,
   Loader2,
   Power,
+  AlertTriangle,
+  ShieldAlert,
 } from "lucide-react";
 
 interface TeamFormModalProps {
@@ -343,15 +346,277 @@ const TeamFormModal = memo(function TeamFormModal({
   );
 });
 
+interface DeleteTestTeamModalProps {
+  isOpen: boolean;
+  team: Team | null;
+  localMatchesCount: number;
+  onClose: () => void;
+  deleteTestTeam: (id: string) => Promise<void>;
+}
+
+const DeleteTestTeamModal = memo(function DeleteTestTeamModal({
+  isOpen,
+  team,
+  localMatchesCount,
+  onClose,
+  deleteTestTeam,
+}: DeleteTestTeamModalProps) {
+  const toast = useToast();
+  const [isChecking, setIsChecking] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<TeamDependencyDiagnostic | null>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !team) return;
+
+    let cancelled = false;
+    setConfirmText("");
+    setErrorMsg(null);
+    setIsDeleting(false);
+    setIsChecking(true);
+
+    teamsService
+      .inspectTeamDependencies(team.id)
+      .then((res) => {
+        if (cancelled) return;
+        setDiagnostics(res);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDiagnostics({
+          matches_count: localMatchesCount,
+          players_count: 0,
+          coaches_count: 0,
+          sanctions_count: 0,
+          adjustments_count: 0,
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setIsChecking(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, team?.id, localMatchesCount]);
+
+  if (!isOpen || !team) return null;
+
+  const matchesCount = Math.max(diagnostics?.matches_count ?? 0, localMatchesCount);
+  const hasMatches = matchesCount > 0;
+  const isConfirmReady = confirmText.trim() === "ELIMINAR";
+
+  const handleConfirmDelete = async () => {
+    if (hasMatches || !isConfirmReady) return;
+    setIsDeleting(true);
+    setErrorMsg(null);
+    try {
+      await deleteTestTeam(team.id);
+      toast.success("Equipo de prueba eliminado correctamente.");
+      onClose();
+    } catch (err: any) {
+      const msg = err?.message || "No se pudo eliminar el equipo de prueba.";
+      setErrorMsg(msg);
+      toast.error(msg);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <h3 className="text-base font-black text-white flex items-center gap-2 uppercase tracking-wider">
+            <ShieldAlert className="w-5 h-5 text-rose-500" />
+            ELIMINAR EQUIPO DE PRUEBA
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isDeleting}
+            aria-label="Cerrar ventana"
+            className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2">
+          <div className="flex items-center gap-3">
+            <TeamLogo team={team} size="md" />
+            <div>
+              <div className="text-sm font-black text-white">{team.name}</div>
+              <div className="text-xs font-mono text-blue-400">{team.short_name}</div>
+            </div>
+          </div>
+          {team.city && (
+            <div className="text-xs text-slate-400 pt-1">
+              Sede: <span className="text-slate-200 font-semibold">{team.city}</span>
+            </div>
+          )}
+        </div>
+
+        {isChecking ? (
+          <div className="py-8 flex flex-col items-center justify-center gap-2 text-slate-400">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+            <span className="text-xs font-semibold">
+              Inspeccionando relaciones del equipo en Supabase...
+            </span>
+          </div>
+        ) : hasMatches ? (
+          <>
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-300 space-y-1.5 leading-relaxed">
+                <p className="font-black uppercase tracking-wider text-amber-200">
+                  Eliminación bloqueada por partidos asociados ({matchesCount})
+                </p>
+                <p className="font-semibold text-white">
+                  Este equipo todavía tiene partidos registrados. Elimina primero sus partidos de prueba.
+                </p>
+              </div>
+            </div>
+
+            {diagnostics && (
+              <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+                <div className="font-bold text-slate-300 uppercase tracking-wider">
+                  Relaciones detectadas:
+                </div>
+                <div className="grid grid-cols-2 gap-1 pt-1">
+                  <span>Partidos: <strong className="text-rose-400">{matchesCount}</strong></span>
+                  <span>Jugadores: <strong className="text-slate-200">{diagnostics.players_count}</strong></span>
+                  <span>Cuerpo técnico: <strong className="text-slate-200">{diagnostics.coaches_count}</strong></span>
+                  <span>Sanciones: <strong className="text-slate-200">{diagnostics.sanctions_count}</strong></span>
+                  <span className="col-span-2">
+                    Ajustes de tabla: <strong className="text-slate-200">{diagnostics.adjustments_count}</strong>
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-300 transition-colors"
+              >
+                Cerrar ventana
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="p-3.5 rounded-2xl bg-rose-950/40 border border-rose-500/40 flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <div className="text-xs text-rose-200 space-y-1 leading-relaxed">
+                <p className="font-black uppercase tracking-wider text-rose-300">
+                  HERRAMIENTA EXCLUSIVA SUPER_ADMIN
+                </p>
+                <p>
+                  Esta acción eliminará permanentemente este equipo de prueba y sus registros auxiliares asociados (jugadores, cuerpo técnico, sanciones y ajustes de tabla).
+                </p>
+              </div>
+            </div>
+
+            {diagnostics && (
+              <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+                <div className="font-bold text-slate-300 uppercase tracking-wider">
+                  Dependencias a limpiar en cascada controlada:
+                </div>
+                <div className="grid grid-cols-2 gap-1 pt-1">
+                  <span>Partidos: <strong className="text-emerald-400">0</strong></span>
+                  <span>Jugadores: <strong className="text-slate-200">{diagnostics.players_count}</strong></span>
+                  <span>Cuerpo técnico: <strong className="text-slate-200">{diagnostics.coaches_count}</strong></span>
+                  <span>Sanciones: <strong className="text-slate-200">{diagnostics.sanctions_count}</strong></span>
+                  <span className="col-span-2">
+                    Ajustes de tabla: <strong className="text-slate-200">{diagnostics.adjustments_count}</strong>
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                Escribe <span className="text-rose-400 font-black">ELIMINAR</span> para habilitar el borrado definitivo:
+              </label>
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="Escribe ELIMINAR"
+                autoComplete="off"
+                disabled={isDeleting}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-rose-500/40 text-xs font-bold text-white placeholder:text-slate-600 focus:outline-none focus:border-rose-500"
+              />
+            </div>
+
+            {errorMsg && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <span className="text-xs font-semibold text-rose-300">{errorMsg}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isDeleting}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-bold text-slate-300 transition-colors disabled:opacity-50"
+              >
+                Cerrar ventana
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting || !isConfirmReady}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-rose-600/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>ELIMINAR DEFINITIVAMENTE</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export default function TeamsPage() {
-  const { teams, players, standings, addTeam, updateTeam, deleteTeam, isLoadingRemote, currentUserRole } = useFutsal();
+  const {
+    teams,
+    players,
+    matches,
+    standings,
+    addTeam,
+    updateTeam,
+    deleteTeam,
+    deleteTestTeam,
+    isLoadingRemote,
+    currentUserRole,
+  } = useFutsal();
   const toast = useToast();
   const isReadOnly = currentUserRole === "PRENSA";
+  const isSuperAdmin = currentUserRole === "SUPER_ADMIN";
 
   const [searchTerm, setSearchTerm] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [testDeletingTeam, setTestDeletingTeam] = useState<Team | null>(null);
 
   const filteredTeams = useMemo(() => {
     const clean = searchTerm.trim().toLowerCase();
@@ -379,6 +644,19 @@ export default function TeamsPage() {
     }
     return map;
   }, [standings]);
+
+  const matchesCountByTeam = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of matches) {
+      if (m.home_team_id) {
+        map.set(m.home_team_id, (map.get(m.home_team_id) || 0) + 1);
+      }
+      if (m.away_team_id) {
+        map.set(m.away_team_id, (map.get(m.away_team_id) || 0) + 1);
+      }
+    }
+    return map;
+  }, [matches]);
 
   const openCreateModal = useCallback(() => {
     setEditingTeam(null);
@@ -597,13 +875,26 @@ export default function TeamsPage() {
                   </div>
 
                   {/* View squad button */}
-                  <Link
-                    href={`/dashboard/equipos/${team.id}`}
-                    className="mt-5 w-full py-2.5 rounded-xl bg-slate-800/80 hover:bg-blue-600 text-slate-200 hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all group-hover:bg-blue-600 group-hover:text-white"
-                  >
-                    <span>Ver Plantel y Perfil</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
+                  <div className="mt-5 space-y-2">
+                    <Link
+                      href={`/dashboard/equipos/${team.id}`}
+                      className="w-full py-2.5 rounded-xl bg-slate-800/80 hover:bg-blue-600 text-slate-200 hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all group-hover:bg-blue-600 group-hover:text-white"
+                    >
+                      <span>Ver Plantel y Perfil</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+
+                    {isSuperAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setTestDeletingTeam(team)}
+                        className="w-full py-2 px-3 rounded-xl bg-rose-950/50 hover:bg-rose-600 border border-rose-500/40 text-rose-300 hover:text-white text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <ShieldAlert className="w-3.5 h-3.5" />
+                        <span>ELIMINAR EQUIPO DE PRUEBA</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -618,6 +909,19 @@ export default function TeamsPage() {
           addTeam={addTeam}
           updateTeam={updateTeam}
         />
+
+        {/* Modal Eliminar Equipo de Prueba (Solo SUPER_ADMIN) */}
+        {isSuperAdmin && (
+          <DeleteTestTeamModal
+            isOpen={Boolean(testDeletingTeam)}
+            team={testDeletingTeam}
+            localMatchesCount={
+              testDeletingTeam ? matchesCountByTeam.get(testDeletingTeam.id) || 0 : 0
+            }
+            onClose={() => setTestDeletingTeam(null)}
+            deleteTestTeam={deleteTestTeam}
+          />
+        )}
       </div>
     </DashboardLayout>
   );
