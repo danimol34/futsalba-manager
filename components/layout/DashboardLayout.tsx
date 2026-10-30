@@ -1,6 +1,15 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, memo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+  createContext,
+  useContext,
+  memo,
+} from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useFutsal } from "@/lib/store/futsalStore";
@@ -176,6 +185,73 @@ const navigationItems = [
   { name: "Configuración", href: "/dashboard/configuracion", icon: Settings },
 ];
 
+const LIVE_SIDEBAR_HREF = "/dashboard/partidos/match-301/live";
+const LOGISTICS_SIDEBAR_HREF = "/dashboard/partidos/match-301/logistica";
+
+/**
+ * Única fuente de verdad para resolver qué ruta del Sidebar debe estar activa.
+ * Reglas de prioridad estrictas para garantizar que NUNCA haya dos módulos activos simultáneamente:
+ * 1. /dashboard/partidos/[id]/live -> "Partido en Vivo"
+ * 2. /dashboard/partidos/[id]/logistica (o /dashboard/logistica) -> "Logística"
+ * 3. Módulos específicos (/dashboard/partidos, /dashboard/clasificacion, etc.) por coincidencia exacta o de segmento
+ * 4. /dashboard exacto -> "Dashboard"
+ */
+export function resolveActiveSidebarHref(pathname: string | null): string {
+  if (!pathname) return "";
+
+  const cleanPath =
+    pathname.split("?")[0].split("#")[0].replace(/\/+$/, "") || "/";
+
+  // Prioridad 1: Partido en Vivo (/dashboard/partidos/[id]/live)
+  if (/^\/dashboard\/partidos\/[^/]+\/live$/.test(cleanPath)) {
+    return LIVE_SIDEBAR_HREF;
+  }
+
+  // Prioridad 2: Logística (/dashboard/partidos/[id]/logistica o /dashboard/logistica)
+  if (
+    /^\/dashboard\/partidos\/[^/]+\/logistica$/.test(cleanPath) ||
+    cleanPath === "/dashboard/logistica" ||
+    cleanPath.startsWith("/dashboard/logistica/")
+  ) {
+    return LOGISTICS_SIDEBAR_HREF;
+  }
+
+  // Prioridad 3: Módulos de primer nivel (excluyendo raíz /dashboard y las subrutas especiales ya evaluadas)
+  const moduleCandidates = navigationItems
+    .filter(
+      (item) =>
+        item.href !== "/dashboard" &&
+        item.href !== LIVE_SIDEBAR_HREF &&
+        item.href !== LOGISTICS_SIDEBAR_HREF
+    )
+    .sort((a, b) => b.href.length - a.href.length);
+
+  for (const candidate of moduleCandidates) {
+    if (
+      cleanPath === candidate.href ||
+      cleanPath.startsWith(`${candidate.href}/`)
+    ) {
+      return candidate.href;
+    }
+  }
+
+  // Prioridad 4: Dashboard raíz exacto
+  if (cleanPath === "/dashboard") {
+    return "/dashboard";
+  }
+
+  return "";
+}
+
+export function isRouteActive(href: string, pathname: string | null): boolean {
+  return resolveActiveSidebarHref(pathname) === href;
+}
+
+// Preserva la posición vertical del scroll del Sidebar en memoria entre renders o transiciones
+let persistedSidebarScrollTop = 0;
+
+const DashboardShellContext = createContext<boolean>(false);
+
 export const Sidebar = memo(function Sidebar({
   mobileOpen,
   setMobileOpen,
@@ -186,6 +262,19 @@ export const Sidebar = memo(function Sidebar({
   const pathname = usePathname();
   const { currentUserRole, setCurrentUserRole, userRoles, logout } = useFutsal();
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const navScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Restaurar de forma síncrona el scrollTop del contenedor de navegación sin provocar saltos
+  useLayoutEffect(() => {
+    const el = navScrollRef.current;
+    if (el && el.scrollTop !== persistedSidebarScrollTop) {
+      el.scrollTop = persistedSidebarScrollTop;
+    }
+  }, [pathname]);
+
+  const handleNavScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    persistedSidebarScrollTop = e.currentTarget.scrollTop;
+  }, []);
 
   // Filtrado de módulos según el rol activo
   const allowedPaths =
@@ -194,6 +283,9 @@ export const Sidebar = memo(function Sidebar({
   const visibleNavItems = navigationItems.filter((item) =>
     allowedPaths.includes(item.href)
   );
+
+  // Único href activo calculado exclusivamente desde pathname
+  const activeHref = resolveActiveSidebarHref(pathname);
 
   const allRolesList: UserRole[] = [
     "SUPER_ADMIN",
@@ -312,22 +404,38 @@ export const Sidebar = memo(function Sidebar({
         </div>
 
         {/* Nav Items List (filtrado dinámicamente según permisos de rol) */}
-        <div className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
+        <nav
+          ref={navScrollRef}
+          onScroll={handleNavScroll}
+          aria-label="Menú principal del dashboard"
+          className="flex-1 overflow-y-auto py-3 px-3 space-y-1"
+        >
           {visibleNavItems.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.href !== "/dashboard" && pathname?.startsWith(item.href));
+            const isActive = activeHref === item.href;
             const Icon = item.icon;
 
             return (
               <Link
-                key={item.name}
+                key={item.href}
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
-                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
+                aria-current={isActive ? "page" : undefined}
+                onMouseDown={(e) => {
+                  // Conservar exactamente el scrollTop antes del foco nativo del navegador
+                  if (navScrollRef.current) {
+                    persistedSidebarScrollTop = navScrollRef.current.scrollTop;
+                  }
+                  e.currentTarget.blur();
+                }}
+                onClick={() => {
+                  if (navScrollRef.current) {
+                    navScrollRef.current.scrollTop = persistedSidebarScrollTop;
+                  }
+                  setMobileOpen(false);
+                }}
+                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs transition-colors group border ${
                   isActive
-                    ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30"
-                    : "text-slate-300 hover:bg-slate-800/70 hover:text-white"
+                    ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30 border-blue-500/40"
+                    : "text-slate-400 font-semibold border-transparent hover:bg-slate-800/45 hover:text-slate-200"
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -335,7 +443,7 @@ export const Sidebar = memo(function Sidebar({
                     className={`w-4 h-4 transition-colors ${
                       isActive
                         ? "text-white"
-                        : "text-slate-400 group-hover:text-blue-400"
+                        : "text-slate-500 group-hover:text-slate-300"
                     }`}
                   />
                   <span>{item.name}</span>
@@ -351,7 +459,7 @@ export const Sidebar = memo(function Sidebar({
               </Link>
             );
           })}
-        </div>
+        </nav>
 
         {/* Footer shortcuts */}
         <div className="p-4 border-t border-slate-800/80 bg-[#060b15]/60 flex flex-col gap-2">
@@ -482,12 +590,14 @@ export const DashboardHeader = memo(function DashboardHeader({ onOpenMobile }: {
 });
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const isInsideShell = useContext(DashboardShellContext);
   const [mobileOpen, setMobileOpen] = useState(false);
   const handleOpenMobile = useCallback(() => setMobileOpen(true), []);
   const { isAuthenticated, isAuthLoading, currentUserRole, authError, retryAuth } = useFutsal();
   const router = useRouter();
 
   useEffect(() => {
+    if (isInsideShell) return;
     if (!isAuthLoading && !authError) {
       if (!isAuthenticated) {
         if (window.location.pathname.startsWith("/dashboard")) {
@@ -497,7 +607,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         router.replace("/");
       }
     }
-  }, [isAuthenticated, isAuthLoading, currentUserRole, authError, router]);
+  }, [isInsideShell, isAuthenticated, isAuthLoading, currentUserRole, authError, router]);
+
+  // Si ya existe el layout persistente montado en app/dashboard/layout.tsx,
+  // no volver a montar ni recrear Sidebar/Header al cambiar de página.
+  if (isInsideShell) {
+    return <>{children}</>;
+  }
 
   if (authError) {
     return (
@@ -584,13 +700,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#060b14] flex">
-      <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+    <DashboardShellContext.Provider value={true}>
+      <div className="min-h-screen bg-[#060b14] flex">
+        <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
 
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-72">
-        <DashboardHeader onOpenMobile={handleOpenMobile} />
-        <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">{children}</main>
+        <div className="flex-1 flex flex-col min-w-0 lg:pl-72">
+          <DashboardHeader onOpenMobile={handleOpenMobile} />
+          <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">{children}</main>
+        </div>
       </div>
-    </div>
+    </DashboardShellContext.Provider>
   );
 }
