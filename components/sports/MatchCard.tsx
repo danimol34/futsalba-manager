@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { memo } from "react";
 import Link from "next/link";
 import { Match } from "@/types";
 import { useFutsal } from "@/lib/store/futsalStore";
@@ -23,7 +23,7 @@ interface MatchCardProps {
   compact?: boolean;
 }
 
-export function MatchCard({ match, compact = false }: MatchCardProps) {
+export const MatchCard = memo(function MatchCard({ match, compact = false }: MatchCardProps) {
   const { teams, venues, matchdays } = useFutsal();
 
   const homeTeam = teams.find((t) => t.id === match.home_team_id);
@@ -189,4 +189,4 @@ export function MatchCard({ match, compact = false }: MatchCardProps) {
       </div>
     </div>
   );
-}
+});

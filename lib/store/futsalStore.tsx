@@ -740,6 +740,19 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, []);
 
+  // Firma ligera de marcadores/estados para evitar recalcular standings cada segundo con el reloj en vivo
+  const matchesScoreSignature = useMemo(
+    () =>
+      matches
+        .filter((m) => m.status === "FINALIZADO" || m.status === "EN_VIVO")
+        .map(
+          (m) =>
+            `${m.id}:${m.status}:${m.home_team_id}:${m.away_team_id}:${m.home_score}:${m.away_score}`
+        )
+        .join("|"),
+    [matches]
+  );
+
   // Standings dynamically computed from matches & teams
   const standings = useMemo<Standing[]>(() => {
     const standingsMap = new Map<string, Standing>();
@@ -837,7 +850,8 @@ export function FutsalProvider({ children }: { children: React.ReactNode }) {
     });
 
     return result;
-  }, [teams, matches, leagueSettings, standingsAdjustments]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teams, matchesScoreSignature, leagueSettings, standingsAdjustments]);
 
   // Auth methods: Real Supabase Auth signInWithPassword
   const login = async (

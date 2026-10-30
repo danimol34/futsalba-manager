@@ -68,6 +68,21 @@ body {
   letter-spacing: -0.05em;
 }
 
+/* Remove native number input spinners globally (Chrome, Safari, Edge, Opera, Firefox) */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button,
+.no-spinners::-webkit-outer-spin-button,
+.no-spinners::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"],
+.no-spinners {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

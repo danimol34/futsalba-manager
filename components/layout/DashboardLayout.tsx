@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, memo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useFutsal } from "@/lib/store/futsalStore";
@@ -176,7 +176,7 @@ const navigationItems = [
   { name: "Configuración", href: "/dashboard/configuracion", icon: Settings },
 ];
 
-export function Sidebar({
+export const Sidebar = memo(function Sidebar({
   mobileOpen,
   setMobileOpen,
 }: {
@@ -378,9 +378,9 @@ export function Sidebar({
       </aside>
     </>
   );
-}
+});
 
-export function DashboardHeader({ onOpenMobile }: { onOpenMobile: () => void }) {
+export const DashboardHeader = memo(function DashboardHeader({ onOpenMobile }: { onOpenMobile: () => void }) {
   const { notifications, markNotificationAsRead, currentUserRole, user } =
     useFutsal();
   const [notifOpen, setNotifOpen] = useState(false);
@@ -479,10 +479,11 @@ export function DashboardHeader({ onOpenMobile }: { onOpenMobile: () => void }) 
       </div>
     </header>
   );
-}
+});
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const handleOpenMobile = useCallback(() => setMobileOpen(true), []);
   const { isAuthenticated, isAuthLoading, currentUserRole, authError, retryAuth } = useFutsal();
   const router = useRouter();
 
@@ -587,7 +588,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
 
       <div className="flex-1 flex flex-col min-w-0 lg:pl-72">
-        <DashboardHeader onOpenMobile={() => setMobileOpen(true)} />
+        <DashboardHeader onOpenMobile={handleOpenMobile} />
         <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">{children}</main>
       </div>
     </div>

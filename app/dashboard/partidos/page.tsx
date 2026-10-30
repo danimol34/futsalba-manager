@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFutsal } from "@/lib/store/futsalStore";
@@ -28,18 +28,20 @@ export default function MatchesListPage() {
   const [matchdayFilter, setMatchdayFilter] = useState<string>("ALL");
   const [teamFilter, setTeamFilter] = useState<string>("ALL");
 
-  const filteredMatches = matches.filter((m) => {
-    const matchesStatus =
-      statusFilter === "ALL" || m.status === statusFilter;
-    const matchesMatchday =
-      matchdayFilter === "ALL" || m.matchday_id === matchdayFilter;
-    const matchesTeam =
-      teamFilter === "ALL" ||
-      m.home_team_id === teamFilter ||
-      m.away_team_id === teamFilter;
+  const filteredMatches = useMemo(() => {
+    return matches.filter((m) => {
+      const matchesStatus =
+        statusFilter === "ALL" || m.status === statusFilter;
+      const matchesMatchday =
+        matchdayFilter === "ALL" || m.matchday_id === matchdayFilter;
+      const matchesTeam =
+        teamFilter === "ALL" ||
+        m.home_team_id === teamFilter ||
+        m.away_team_id === teamFilter;
 
-    return matchesStatus && matchesMatchday && matchesTeam;
-  });
+      return matchesStatus && matchesMatchday && matchesTeam;
+    });
+  }, [matches, statusFilter, matchdayFilter, teamFilter]);
 
   return (
     <DashboardLayout>

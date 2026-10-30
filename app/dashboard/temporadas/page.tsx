@@ -1,46 +1,57 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback, useEffect, memo } from "react";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/lib/context/ToastContext";
 import { formatSupabaseError } from "@/lib/utils/errorHandler";
 import { Season, SeasonStatus } from "@/types";
-import { CalendarDays, Plus, CheckCircle2, Clock, X, Check, Edit2, Loader2 } from "lucide-react";
+import { SeasonInsert, SeasonUpdate } from "@/lib/services";
+import { CalendarDays, Plus, X, Check, Edit2, Loader2 } from "lucide-react";
 
-export default function SeasonsPage() {
-  const { seasons, createSeason, updateSeason, isLoadingRemote, currentUserRole } = useFutsal();
+interface SeasonFormModalProps {
+  isOpen: boolean;
+  editingSeason: Season | null;
+  onClose: () => void;
+  createSeason: (season: SeasonInsert) => Promise<Season>;
+  updateSeason: (id: string, updates: SeasonUpdate) => Promise<Season>;
+}
+
+const SeasonFormModal = memo(function SeasonFormModal({
+  isOpen,
+  editingSeason,
+  onClose,
+  createSeason,
+  updateSeason,
+}: SeasonFormModalProps) {
   const toast = useToast();
-  const isReadOnly = currentUserRole === "PRENSA";
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingSeason, setEditingSeason] = useState<Season | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Form State
+  // Estado local aislado
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("2026-01-01");
   const [endDate, setEndDate] = useState("2026-12-31");
   const [status, setStatus] = useState<SeasonStatus>("ACTIVA");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const openCreateModal = () => {
-    setEditingSeason(null);
-    setName("");
-    setStartDate("2026-01-01");
-    setEndDate("2026-12-31");
-    setStatus("ACTIVA");
-    setModalOpen(true);
-  };
+  useEffect(() => {
+    if (!isOpen) return;
 
-  const openEditModal = (season: Season) => {
-    setEditingSeason(season);
-    setName(season.name);
-    setStartDate(season.start_date || "2026-01-01");
-    setEndDate(season.end_date || "2026-12-31");
-    setStatus(season.status);
-    setModalOpen(true);
-  };
+    if (editingSeason) {
+      setName(editingSeason.name || "");
+      setStartDate(editingSeason.start_date || "2026-01-01");
+      setEndDate(editingSeason.end_date || "2026-12-31");
+      setStatus(editingSeason.status || "ACTIVA");
+    } else {
+      setName("");
+      setStartDate("2026-01-01");
+      setEndDate("2026-12-31");
+      setStatus("ACTIVA");
+    }
+    setIsSubmitting(false);
+  }, [isOpen, editingSeason]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +79,7 @@ export default function SeasonsPage() {
         });
         toast.success("✅ Temporada creada correctamente");
       }
-      setModalOpen(false);
+      onClose();
     } catch (err: any) {
       const formatted = formatSupabaseError(err);
       toast.error(formatted.message, formatted.title);
@@ -76,6 +87,135 @@ export default function SeasonsPage() {
       setIsSubmitting(false);
     }
   };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <h3 className="text-lg font-black text-white flex items-center gap-2">
+            <CalendarDays className="w-5 h-5 text-blue-400" />
+            {editingSeason ? "EDITAR TEMPORADA" : "NUEVA TEMPORADA"}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+              Nombre de la Temporada *
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="Ej: Temporada 2026"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Fecha Inicio
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Fecha Fin
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+              Estado Inicial
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as SeasonStatus)}
+              className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+            >
+              <option value="BORRADOR">BORRADOR (En preparación)</option>
+              <option value="ACTIVA">ACTIVA (En curso oficial)</option>
+              <option value="FINALIZADA">FINALIZADA (Concluida)</option>
+            </select>
+          </div>
+
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>{editingSeason ? "Actualizar Temporada" : "Guardar Temporada"}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+});
+
+export default function SeasonsPage() {
+  const { seasons, createSeason, updateSeason, isLoadingRemote, currentUserRole } = useFutsal();
+  const toast = useToast();
+  const isReadOnly = currentUserRole === "PRENSA";
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingSeason, setEditingSeason] = useState<Season | null>(null);
+
+  const openCreateModal = useCallback(() => {
+    setEditingSeason(null);
+    setModalOpen(true);
+  }, []);
+
+  const openEditModal = useCallback((season: Season) => {
+    setEditingSeason(season);
+    setModalOpen(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setEditingSeason(null);
+  }, []);
 
   const handleSetStatus = async (season: Season, newStatus: SeasonStatus) => {
     try {
@@ -200,110 +340,14 @@ export default function SeasonsPage() {
           </div>
         )}
 
-        {/* Modal Create / Edit */}
-        {modalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <CalendarDays className="w-5 h-5 text-blue-400" />
-                  {editingSeason ? "EDITAR TEMPORADA" : "NUEVA TEMPORADA"}
-                </h3>
-                <button
-                  onClick={() => setModalOpen(false)}
-                  disabled={isSubmitting}
-                  className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                    Nombre de la Temporada *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej: Temporada 2026"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Fecha Inicio
-                    </label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Fecha Fin
-                    </label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                    Estado Inicial
-                  </label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as SeasonStatus)}
-                    className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="BORRADOR">BORRADOR (En preparación)</option>
-                    <option value="ACTIVA">ACTIVA (En curso oficial)</option>
-                    <option value="FINALIZADA">FINALIZADA (Concluida)</option>
-                  </select>
-                </div>
-
-                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => setModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Guardando...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-4 h-4" />
-                        <span>{editingSeason ? "Actualizar Temporada" : "Guardar Temporada"}</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {/* Modal Create / Edit con estado local aislado */}
+        <SeasonFormModal
+          isOpen={modalOpen}
+          editingSeason={editingSeason}
+          onClose={closeModal}
+          createSeason={createSeason}
+          updateSeason={updateSeason}
+        />
       </div>
     </DashboardLayout>
   );

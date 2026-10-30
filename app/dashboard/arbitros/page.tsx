@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback, memo } from "react";
 import Image from "next/image";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Referee } from "@/types";
-import { refereesService } from "@/lib/services";
+import { refereesService, RefereeInsert, RefereeUpdate } from "@/lib/services";
 import {
   UserCheck,
   Plus,
@@ -28,94 +28,119 @@ const REFEREE_CATEGORIES = [
   "CRONOMETRADOR",
 ];
 
-export default function RefereesPage() {
-  const { referees, currentUserRole, addReferee, updateReferee, refetchReferees } = useFutsal();
+interface RefereeFormModalProps {
+  isOpen: boolean;
+  editingReferee: Referee | null;
+  onClose: () => void;
+  addReferee: (data: RefereeInsert) => Promise<Referee>;
+  updateReferee: (id: string, updates: RefereeUpdate) => Promise<Referee>;
+  refetchReferees: () => Promise<void>;
+}
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingReferee, setEditingReferee] = useState<Referee | null>(null);
-
-  // Form states
+const RefereeFormModal = memo(function RefereeFormModal({
+  isOpen,
+  editingReferee,
+  onClose,
+  addReferee,
+  updateReferee,
+  refetchReferees,
+}: RefereeFormModalProps) {
+  // Estado 100% local del modal para escritura y pegado instantáneo
   const [fullName, setFullName] = useState("");
   const [category, setCategory] = useState("PRINCIPAL");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"ACTIVO" | "INACTIVO">("ACTIVO");
 
-  // Photo upload states
+  // Estado local de fotografía
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Status & error handling
+  // Estado de guardado y errores
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const isPrensa = currentUserRole === "PRENSA";
-  const canManage = ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR"].includes(currentUserRole);
+  // Inicializar únicamente al abrir el modal o cambiar el árbitro editado
+  useEffect(() => {
+    if (!isOpen) return;
 
-  const openCreateModal = () => {
-    setEditingReferee(null);
-    setFullName("");
-    setCategory("PRINCIPAL");
-    setPhone("");
-    setEmail("");
-    setStatus("ACTIVO");
+    if (editingReferee) {
+      setFullName(editingReferee.full_name || "");
+      setCategory(editingReferee.category || "PRINCIPAL");
+      setPhone(editingReferee.phone || "");
+      setEmail(editingReferee.email || "");
+      setStatus(
+        editingReferee.status === false || editingReferee.status === "INACTIVO"
+          ? "INACTIVO"
+          : "ACTIVO"
+      );
+      setPreviewUrl(editingReferee.photo_url || null);
+    } else {
+      setFullName("");
+      setCategory("PRINCIPAL");
+      setPhone("");
+      setEmail("");
+      setStatus("ACTIVO");
+      setPreviewUrl(null);
+    }
+
     setSelectedFile(null);
-    setPreviewUrl(null);
     setFormError(null);
-    setModalOpen(true);
-  };
+    setSaving(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [isOpen, editingReferee]);
 
-  const openEditModal = (ref: Referee) => {
-    setEditingReferee(ref);
-    setFullName(ref.full_name);
-    setCategory(ref.category || "PRINCIPAL");
-    setPhone(ref.phone || "");
-    setEmail(ref.email || "");
-    setStatus(ref.status === false || ref.status === "INACTIVO" ? "INACTIVO" : "ACTIVO");
-    setSelectedFile(null);
-    setPreviewUrl(ref.photo_url || null);
-    setFormError(null);
-    setModalOpen(true);
-  };
+  // Limpiar objectURL temporal si existe
+  useEffect(() => {
+    return () => {
+      if (previewUrl && previewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
-  const closeModal = () => {
+  if (!isOpen) return null;
+
+  const handleSafeClose = () => {
     if (saving) return;
-    setModalOpen(false);
-    setEditingReferee(null);
-    setSelectedFile(null);
-    setPreviewUrl(null);
-    setFormError(null);
+    onClose();
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate type
     const validMimes = ["image/jpeg", "image/png", "image/webp"];
     if (!validMimes.includes(file.type)) {
       setFormError("Formato de imagen inválido. Solo se admiten archivos JPG, PNG o WEBP.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
-    // Validate size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setFormError("La fotografía no puede superar los 5 MB de tamaño.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
     setFormError(null);
     setSelectedFile(file);
     const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
+    setPreviewUrl((prev) => {
+      if (prev && prev.startsWith("blob:")) {
+        URL.revokeObjectURL(prev);
+      }
+      return objectUrl;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
-    // Validation
     const cleanName = fullName.trim();
     if (!cleanName || cleanName.length < 3) {
       setFormError("El nombre completo es obligatorio y debe tener al menos 3 caracteres.");
@@ -135,16 +160,16 @@ export default function RefereesPage() {
     try {
       let finalPhotoUrl = editingReferee?.photo_url || null;
 
-      // Upload photo if a new file was chosen
       if (selectedFile) {
         try {
           const targetId = editingReferee?.id || `temp-${Date.now()}`;
           finalPhotoUrl = await refereesService.uploadPhoto(targetId, selectedFile);
         } catch (uploadErr: any) {
           console.warn("Notice: No se pudo subir foto a Storage (¿Falta bucket o políticas?):", uploadErr?.message);
-          // If storage bucket is pending creation or fails, inform user gracefully
           if (uploadErr?.message?.includes("Bucket not found") || uploadErr?.message?.includes("bucket")) {
-            setFormError("El bucket de almacenamiento 'referee-photos' está pendiente de creación en Supabase. Puedes guardar sin foto temporalmente o solicitar la migración de Storage.");
+            setFormError(
+              "El bucket de almacenamiento 'referee-photos' está pendiente de creación en Supabase. Puedes guardar sin foto temporalmente o solicitar la migración de Storage."
+            );
             setSaving(false);
             return;
           }
@@ -168,7 +193,7 @@ export default function RefereesPage() {
       }
 
       await refetchReferees();
-      closeModal();
+      onClose();
     } catch (err: any) {
       console.error("Error al guardar árbitro:", err);
       setFormError(err?.message || "Ocurrió un error al registrar el árbitro en la base de datos.");
@@ -176,6 +201,235 @@ export default function RefereesPage() {
       setSaving(false);
     }
   };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="sports-card rounded-3xl max-w-lg w-full p-6 md:p-8 border border-slate-700 shadow-2xl relative space-y-6 max-h-[90vh] overflow-y-auto">
+        <button
+          type="button"
+          onClick={handleSafeClose}
+          disabled={saving}
+          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+          aria-label="Cerrar formulario"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="space-y-1">
+          <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded bg-blue-600/20 text-blue-400 border border-blue-500/30">
+            {editingReferee ? "Edición de Árbitro" : "Nuevo Registro"}
+          </span>
+          <h2 className="text-xl md:text-2xl font-black text-white">
+            {editingReferee ? "EDITAR ÁRBITRO" : "REGISTRAR ÁRBITRO"}
+          </h2>
+          <p className="text-xs text-slate-400">
+            Completa los datos oficiales del integrante del cuerpo arbitral.
+          </p>
+        </div>
+
+        {formError && (
+          <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-3">
+            <AlertOctagon className="w-5 h-5 shrink-0 mt-0.5 text-rose-400" />
+            <div className="leading-relaxed font-medium">{formError}</div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Nombre completo */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+              Nombre Completo <span className="text-rose-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Ej. Carlos Mendoza"
+              required
+              minLength={3}
+              className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+            />
+          </div>
+
+          {/* Categoría */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+              Categoría / Rol Principal <span className="text-rose-400">*</span>
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+            >
+              {REFEREE_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Fotografía (Archivo desde PC/teléfono) */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+              Fotografía Oficial (JPG, PNG, WEBP - Máx 5 MB)
+            </label>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+            />
+
+            <div className="flex items-center gap-4">
+              {previewUrl ? (
+                <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-blue-500/50 bg-slate-800 shrink-0 relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={previewUrl}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-500 shrink-0">
+                  <Camera className="w-6 h-6" />
+                </div>
+              )}
+
+              <div className="flex-1 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-blue-400" />
+                  <span>{previewUrl ? "Cambiar Fotografía" : "Subir desde Dispositivo"}</span>
+                </button>
+                <p className="text-[10px] text-slate-500">
+                  {selectedFile ? selectedFile.name : "Formatos válidos: JPG, PNG o WEBP."}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Teléfono */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+              Teléfono de Contacto (Opcional)
+            </label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+58 412 0000000"
+              className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+            />
+          </div>
+
+          {/* Correo electrónico */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+              Correo Electrónico (Opcional)
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="arbitro@futsalba.com"
+              className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+            />
+          </div>
+
+          {/* Estado */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+              Estado en el Colegio Arbitral
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setStatus("ACTIVO")}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  status === "ACTIVO"
+                    ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/40"
+                    : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                ACTIVO
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatus("INACTIVO")}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  status === "INACTIVO"
+                    ? "bg-rose-600/20 text-rose-400 border border-rose-500/40"
+                    : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
+                }`}
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                INACTIVO
+              </button>
+            </div>
+          </div>
+
+          {/* Submit button */}
+          <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={handleSafeClose}
+              disabled={saving}
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-wider transition-colors shadow-lg shadow-blue-600/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <span>{editingReferee ? "Guardar Cambios" : "Registrar Árbitro"}</span>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+});
+
+export default function RefereesPage() {
+  const { referees, currentUserRole, addReferee, updateReferee, refetchReferees } = useFutsal();
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingReferee, setEditingReferee] = useState<Referee | null>(null);
+
+  const isPrensa = currentUserRole === "PRENSA";
+  const canManage = ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR"].includes(currentUserRole);
+
+  const openCreateModal = useCallback(() => {
+    setEditingReferee(null);
+    setModalOpen(true);
+  }, []);
+
+  const openEditModal = useCallback((ref: Referee) => {
+    setEditingReferee(ref);
+    setModalOpen(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setEditingReferee(null);
+  }, []);
 
   return (
     <DashboardLayout>
@@ -356,211 +610,15 @@ export default function RefereesPage() {
           </div>
         )}
 
-        {/* Modal Registrar / Editar Árbitro */}
-        {modalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="sports-card rounded-3xl max-w-lg w-full p-6 md:p-8 border border-slate-700 shadow-2xl relative space-y-6 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                aria-label="Cerrar formulario"
-              >
-                <X className="w-4 h-4" />
-              </button>
-
-              <div className="space-y-1">
-                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded bg-blue-600/20 text-blue-400 border border-blue-500/30">
-                  {editingReferee ? "Edición de Árbitro" : "Nuevo Registro"}
-                </span>
-                <h2 className="text-xl md:text-2xl font-black text-white">
-                  {editingReferee ? "EDITAR ÁRBITRO" : "REGISTRAR ÁRBITRO"}
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Completa los datos oficiales del integrante del cuerpo arbitral.
-                </p>
-              </div>
-
-              {formError && (
-                <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-3">
-                  <AlertOctagon className="w-5 h-5 shrink-0 mt-0.5 text-rose-400" />
-                  <div className="leading-relaxed font-medium">{formError}</div>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Nombre completo */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                    Nombre Completo <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Ej. Carlos Mendoza"
-                    required
-                    minLength={3}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                  />
-                </div>
-
-                {/* Categoría */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                    Categoría / Rol Principal <span className="text-rose-400">*</span>
-                  </label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                  >
-                    {REFEREE_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Fotografía (Archivo desde PC/teléfono) */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                    Fotografía Oficial (JPG, PNG, WEBP - Máx 5 MB)
-                  </label>
-
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                  />
-
-                  <div className="flex items-center gap-4">
-                    {previewUrl ? (
-                      <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-blue-500/50 bg-slate-800 shrink-0 relative">
-                        <Image
-                          src={previewUrl}
-                          alt="Preview"
-                          fill
-                          sizes="64px"
-                          className="object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-500 shrink-0">
-                        <Camera className="w-6 h-6" />
-                      </div>
-                    )}
-
-                    <div className="flex-1 space-y-1">
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
-                      >
-                        <Upload className="w-3.5 h-3.5 text-blue-400" />
-                        <span>{previewUrl ? "Cambiar Fotografía" : "Subir desde Dispositivo"}</span>
-                      </button>
-                      <p className="text-[10px] text-slate-500">
-                        {selectedFile ? selectedFile.name : "Formatos válidos: JPG, PNG o WEBP."}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Teléfono */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                    Teléfono de Contacto (Opcional)
-                  </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+58 412 0000000"
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                  />
-                </div>
-
-                {/* Correo electrónico */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                    Correo Electrónico (Opcional)
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="arbitro@futsalba.com"
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                  />
-                </div>
-
-                {/* Estado */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                    Estado en el Colegio Arbitral
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setStatus("ACTIVO")}
-                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                        status === "ACTIVO"
-                          ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/40"
-                          : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
-                      }`}
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      ACTIVO
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStatus("INACTIVO")}
-                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                        status === "INACTIVO"
-                          ? "bg-rose-600/20 text-rose-400 border border-rose-500/40"
-                          : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
-                      }`}
-                    >
-                      <XCircle className="w-3.5 h-3.5" />
-                      INACTIVO
-                    </button>
-                  </div>
-                </div>
-
-                {/* Submit button */}
-                <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    disabled={saving}
-                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-wider transition-colors shadow-lg shadow-blue-600/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Guardando...</span>
-                      </>
-                    ) : (
-                      <span>{editingReferee ? "Guardar Cambios" : "Registrar Árbitro"}</span>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {/* Modal Registrar / Editar Árbitro con estado local aislado */}
+        <RefereeFormModal
+          isOpen={modalOpen}
+          editingReferee={editingReferee}
+          onClose={closeModal}
+          addReferee={addReferee}
+          updateReferee={updateReferee}
+          refetchReferees={refetchReferees}
+        />
       </div>
     </DashboardLayout>
   );

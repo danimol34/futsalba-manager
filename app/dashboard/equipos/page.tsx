@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback, useEffect, memo } from "react";
 import Link from "next/link";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -12,11 +12,7 @@ import { Team } from "@/types";
 import {
   Shield,
   Plus,
-  Users,
-  Trophy,
   MapPin,
-  Mail,
-  Phone,
   Search,
   ChevronRight,
   X,
@@ -27,18 +23,24 @@ import {
   Power,
 } from "lucide-react";
 
-export default function TeamsPage() {
-  const { teams, players, standings, addTeam, updateTeam, deleteTeam, isLoadingRemote, currentUserRole } = useFutsal();
+interface TeamFormModalProps {
+  isOpen: boolean;
+  editingTeam: Team | null;
+  onClose: () => void;
+  addTeam: (team: Omit<Team, "id" | "created_at">) => Promise<Team>;
+  updateTeam: (id: string, updates: Partial<Team>) => Promise<Team>;
+}
+
+const TeamFormModal = memo(function TeamFormModal({
+  isOpen,
+  editingTeam,
+  onClose,
+  addTeam,
+  updateTeam,
+}: TeamFormModalProps) {
   const toast = useToast();
-  const isReadOnly = currentUserRole === "PRENSA";
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  // Form state
+  // Estado local aislado del formulario
   const [name, setName] = useState("");
   const [shortName, setShortName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
@@ -50,49 +52,44 @@ export default function TeamsPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const filteredTeams = teams.filter(
-    (t) =>
-      t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.short_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    if (!isOpen) return;
 
-  const openCreateModal = () => {
-    setEditingTeam(null);
-    setName("");
-    setShortName("");
-    setLogoUrl("");
-    setPrimaryColor("#0066ff");
-    setSecondaryColor("#ffffff");
-    setCity("");
-    setCoachName("");
-    setDelegateName("");
-    setPhone("");
-    setEmail("");
-    setStatus(true);
-    setModalOpen(true);
-  };
+    if (editingTeam) {
+      setName(editingTeam.name || "");
+      setShortName(editingTeam.short_name || "");
+      setLogoUrl(editingTeam.logo_url || "");
+      setPrimaryColor(editingTeam.primary_color || "#0066ff");
+      setSecondaryColor(editingTeam.secondary_color || "#ffffff");
+      setCity(editingTeam.city || "");
+      setCoachName(editingTeam.coach_name || "");
+      setDelegateName(editingTeam.delegate_name || "");
+      setPhone(editingTeam.phone || "");
+      setEmail(editingTeam.email || "");
+      setStatus(editingTeam.status === true || editingTeam.status === "ACTIVO");
+    } else {
+      setName("");
+      setShortName("");
+      setLogoUrl("");
+      setPrimaryColor("#0066ff");
+      setSecondaryColor("#ffffff");
+      setCity("");
+      setCoachName("");
+      setDelegateName("");
+      setPhone("");
+      setEmail("");
+      setStatus(true);
+    }
+    setIsSubmitting(false);
+  }, [isOpen, editingTeam]);
 
-  const openEditModal = (team: Team) => {
-    setEditingTeam(team);
-    setName(team.name);
-    setShortName(team.short_name);
-    setLogoUrl(team.logo_url || "");
-    setPrimaryColor(team.primary_color || "#0066ff");
-    setSecondaryColor(team.secondary_color || "#ffffff");
-    setCity(team.city || "");
-    setCoachName(team.coach_name || "");
-    setDelegateName(team.delegate_name || "");
-    setPhone(team.phone || "");
-    setEmail(team.email || "");
-    setStatus(team.status === true || team.status === "ACTIVO");
-    setModalOpen(true);
-  };
+  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !shortName) {
+    if (!name.trim() || !shortName.trim()) {
       toast.warning("El nombre y la sigla del equipo son obligatorios");
       return;
     }
@@ -123,7 +120,7 @@ export default function TeamsPage() {
         toast.success("Equipo creado correctamente");
       }
 
-      setModalOpen(false);
+      onClose();
     } catch (err: any) {
       const formatted = formatSupabaseError(err);
       toast.error(formatted.message, formatted.title);
@@ -131,6 +128,272 @@ export default function TeamsPage() {
       setIsSubmitting(false);
     }
   };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <h3 className="text-lg font-black text-white flex items-center gap-2">
+            <Shield className="w-5 h-5 text-blue-500" />
+            {editingTeam ? "EDITAR EQUIPO" : "REGISTRAR NUEVO EQUIPO"}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Nombre del Equipo *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Ej: Huracán Futsal"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Sigla / Nombre Corto (3-4 letras) *
+              </label>
+              <input
+                type="text"
+                required
+                maxLength={4}
+                placeholder="Ej: HUR"
+                value={shortName}
+                onChange={(e) => setShortName(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white uppercase focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Ciudad / Sede
+              </label>
+              <input
+                type="text"
+                placeholder="Ej: Buenos Aires"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Director Técnico
+              </label>
+              <input
+                type="text"
+                placeholder="Nombre del DT"
+                value={coachName}
+                onChange={(e) => setCoachName(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Delegado Oficial
+              </label>
+              <input
+                type="text"
+                placeholder="Nombre del delegado"
+                value={delegateName}
+                onChange={(e) => setDelegateName(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Teléfono de Contacto
+              </label>
+              <input
+                type="tel"
+                placeholder="+54 9 11 1234-5678"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Correo Electrónico
+              </label>
+              <input
+                type="email"
+                placeholder="contacto@club.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Estado del Equipo
+              </label>
+              <select
+                value={status ? "ACTIVO" : "INACTIVO"}
+                onChange={(e) => setStatus(e.target.value === "ACTIVO")}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="ACTIVO">Activo (Habilitado para competir)</option>
+                <option value="INACTIVO">Inactivo (Suspendido / En pausa)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Colors */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Color Principal
+              </label>
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-900 border border-slate-800">
+                <input
+                  type="color"
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  className="w-8 h-8 rounded-lg bg-transparent cursor-pointer border-0"
+                />
+                <span className="text-xs text-slate-300 font-mono">{primaryColor}</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Color Secundario
+              </label>
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-900 border border-slate-800">
+                <input
+                  type="color"
+                  value={secondaryColor}
+                  onChange={(e) => setSecondaryColor(e.target.value)}
+                  className="w-8 h-8 rounded-lg bg-transparent cursor-pointer border-0"
+                />
+                <span className="text-xs text-slate-300 font-mono">{secondaryColor}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Logo URL */}
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+              URL del Escudo
+            </label>
+            <input
+              type="url"
+              placeholder="https://images.unsplash.com/..."
+              value={logoUrl}
+              onChange={(e) => setLogoUrl(e.target.value)}
+              className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+            />
+            <p className="text-[10px] text-slate-500 mt-1">
+              Puedes ingresar una URL directa de tu escudo o usar imágenes de Supabase Storage.
+            </p>
+          </div>
+
+          {/* Submit buttons */}
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Guardando en Supabase...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>{editingTeam ? "Actualizar Equipo" : "Crear Equipo"}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+});
+
+export default function TeamsPage() {
+  const { teams, players, standings, addTeam, updateTeam, deleteTeam, isLoadingRemote, currentUserRole } = useFutsal();
+  const toast = useToast();
+  const isReadOnly = currentUserRole === "PRENSA";
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const filteredTeams = useMemo(() => {
+    const clean = searchTerm.trim().toLowerCase();
+    if (!clean) return teams;
+    return teams.filter(
+      (t) =>
+        t.name.toLowerCase().includes(clean) ||
+        (t.city && t.city.toLowerCase().includes(clean)) ||
+        t.short_name.toLowerCase().includes(clean)
+    );
+  }, [teams, searchTerm]);
+
+  const playerCountByTeam = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of players) {
+      map.set(p.team_id, (map.get(p.team_id) || 0) + 1);
+    }
+    return map;
+  }, [players]);
+
+  const pointsByTeam = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of standings) {
+      map.set(s.team_id, s.points || 0);
+    }
+    return map;
+  }, [standings]);
+
+  const openCreateModal = useCallback(() => {
+    setEditingTeam(null);
+    setModalOpen(true);
+  }, []);
+
+  const openEditModal = useCallback((team: Team) => {
+    setEditingTeam(team);
+    setModalOpen(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setEditingTeam(null);
+  }, []);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`¿Estás seguro de que deseas eliminar el equipo "${name}"?`)) return;
@@ -221,8 +484,8 @@ export default function TeamsPage() {
           /* Teams Grid */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {filteredTeams.map((team) => {
-              const teamPlayers = players.filter((p) => p.team_id === team.id);
-              const teamStanding = standings.find((s) => s.team_id === team.id);
+              const squadCount = playerCountByTeam.get(team.id) || 0;
+              const teamPoints = pointsByTeam.get(team.id) || 0;
               const isActive = team.status === true || team.status === "ACTIVO";
               const isDeleting = deletingId === team.id;
 
@@ -321,13 +584,13 @@ export default function TeamsPage() {
                       <div>
                         <div className="text-[10px] uppercase font-bold text-slate-500">Plantel</div>
                         <div className="text-sm font-black text-white font-scoreboard">
-                          {teamPlayers.length}
+                          {squadCount}
                         </div>
                       </div>
                       <div>
                         <div className="text-[10px] uppercase font-bold text-slate-500">Puntos</div>
                         <div className="text-sm font-black text-blue-400 font-scoreboard">
-                          {teamStanding?.points || 0}
+                          {teamPoints}
                         </div>
                       </div>
                     </div>
@@ -347,218 +610,14 @@ export default function TeamsPage() {
           </div>
         )}
 
-        {/* Modal Create / Edit */}
-        {modalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-blue-500" />
-                  {editingTeam ? "EDITAR EQUIPO" : "REGISTRAR NUEVO EQUIPO"}
-                </h3>
-                <button
-                  onClick={() => setModalOpen(false)}
-                  disabled={isSubmitting}
-                  className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Nombre del Equipo *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ej: Huracán Futsal"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Sigla / Nombre Corto (3-4 letras) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      maxLength={4}
-                      placeholder="Ej: HUR"
-                      value={shortName}
-                      onChange={(e) => setShortName(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white uppercase focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Ciudad / Sede
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej: Buenos Aires"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Director Técnico
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Nombre del DT"
-                      value={coachName}
-                      onChange={(e) => setCoachName(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Delegado Oficial
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Nombre del delegado"
-                      value={delegateName}
-                      onChange={(e) => setDelegateName(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Teléfono de Contacto
-                    </label>
-                    <input
-                      type="tel"
-                      placeholder="+54 9 11 1234-5678"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Correo Electrónico
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="contacto@club.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Estado del Equipo
-                    </label>
-                    <select
-                      value={status ? "ACTIVO" : "INACTIVO"}
-                      onChange={(e) => setStatus(e.target.value === "ACTIVO")}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="ACTIVO">Activo (Habilitado para competir)</option>
-                      <option value="INACTIVO">Inactivo (Suspendido / En pausa)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Colors */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Color Principal
-                    </label>
-                    <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-900 border border-slate-800">
-                      <input
-                        type="color"
-                        value={primaryColor}
-                        onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="w-8 h-8 rounded-lg bg-transparent cursor-pointer border-0"
-                      />
-                      <span className="text-xs text-slate-300 font-mono">{primaryColor}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Color Secundario
-                    </label>
-                    <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-900 border border-slate-800">
-                      <input
-                        type="color"
-                        value={secondaryColor}
-                        onChange={(e) => setSecondaryColor(e.target.value)}
-                        className="w-8 h-8 rounded-lg bg-transparent cursor-pointer border-0"
-                      />
-                      <span className="text-xs text-slate-300 font-mono">{secondaryColor}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Logo URL */}
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                    URL del Escudo
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://images.unsplash.com/..."
-                    value={logoUrl}
-                    onChange={(e) => setLogoUrl(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Puedes ingresar una URL directa de tu escudo o usar imágenes de Supabase Storage.
-                  </p>
-                </div>
-
-                {/* Submit buttons */}
-                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => setModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Guardando en Supabase...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-4 h-4" />
-                        <span>{editingTeam ? "Actualizar Equipo" : "Crear Equipo"}</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {/* Modal Create / Edit con estado local aislado */}
+        <TeamFormModal
+          isOpen={modalOpen}
+          editingTeam={editingTeam}
+          onClose={closeModal}
+          addTeam={addTeam}
+          updateTeam={updateTeam}
+        />
       </div>
     </DashboardLayout>
   );

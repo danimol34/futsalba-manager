@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { NumericInput } from "@/components/ui/NumericInput";
 import { useToast } from "@/lib/context/ToastContext";
 import { formatSupabaseError } from "@/lib/utils/errorHandler";
 import {
@@ -22,29 +23,58 @@ export default function ConfigurationPage() {
 
   const canConfigure = ["SUPER_ADMIN", "PRESIDENTE", "ADMINISTRADOR"].includes(currentUserRole);
 
+  // Estado local en formato string para los inputs numéricos: permite borrar, escribir y pegar sin bloqueos ni saltos a valores por defecto
   const [leagueName, setLeagueName] = useState(leagueSettings.league_name);
-  const [pointsForWin, setPointsForWin] = useState(leagueSettings.points_for_win);
-  const [pointsForDraw, setPointsForDraw] = useState(leagueSettings.points_for_draw);
-  const [periodDuration, setPeriodDuration] = useState(leagueSettings.period_duration_minutes);
-  const [maxFouls, setMaxFouls] = useState(leagueSettings.max_accumulated_fouls);
+  const [pointsForWin, setPointsForWin] = useState<string>(String(leagueSettings.points_for_win ?? 3));
+  const [pointsForDraw, setPointsForDraw] = useState<string>(String(leagueSettings.points_for_draw ?? 1));
+  const [periodDuration, setPeriodDuration] = useState<string>(String(leagueSettings.period_duration_minutes ?? 20));
+  const [maxFouls, setMaxFouls] = useState<string>(String(leagueSettings.max_accumulated_fouls ?? 5));
 
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Sincronizar el formulario cuando la configuración cargue o cambie en Supabase
+  // Sincronizar el formulario únicamente cuando cambian los valores remotos reales
   useEffect(() => {
     setLeagueName(leagueSettings.league_name);
-    setPointsForWin(leagueSettings.points_for_win);
-    setPointsForDraw(leagueSettings.points_for_draw);
-    setPeriodDuration(leagueSettings.period_duration_minutes);
-    setMaxFouls(leagueSettings.max_accumulated_fouls);
-  }, [leagueSettings]);
+    setPointsForWin(String(leagueSettings.points_for_win ?? 3));
+    setPointsForDraw(String(leagueSettings.points_for_draw ?? 1));
+    setPeriodDuration(String(leagueSettings.period_duration_minutes ?? 20));
+    setMaxFouls(String(leagueSettings.max_accumulated_fouls ?? 5));
+  }, [
+    leagueSettings.league_name,
+    leagueSettings.points_for_win,
+    leagueSettings.points_for_draw,
+    leagueSettings.period_duration_minutes,
+    leagueSettings.max_accumulated_fouls,
+  ]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!leagueName.trim()) {
       toast.warning("El nombre oficial de la liga no puede estar vacío.");
+      return;
+    }
+
+    const parsedWin = parseInt(String(pointsForWin).trim(), 10);
+    const parsedDraw = parseInt(String(pointsForDraw).trim(), 10);
+    const parsedDuration = parseInt(String(periodDuration).trim(), 10);
+    const parsedFouls = parseInt(String(maxFouls).trim(), 10);
+
+    if (isNaN(parsedWin) || parsedWin < 1 || parsedWin > 10) {
+      toast.warning("Los puntos por victoria deben ser un número entre 1 y 10.");
+      return;
+    }
+    if (isNaN(parsedDraw) || parsedDraw < 0 || parsedDraw > 5) {
+      toast.warning("Los puntos por empate deben ser un número entre 0 y 5.");
+      return;
+    }
+    if (isNaN(parsedDuration) || parsedDuration < 5 || parsedDuration > 60) {
+      toast.warning("La duración de cada tiempo debe estar entre 5 y 60 minutos.");
+      return;
+    }
+    if (isNaN(parsedFouls) || parsedFouls < 1 || parsedFouls > 15) {
+      toast.warning("El límite de faltas acumuladas debe estar entre 1 y 15.");
       return;
     }
 
@@ -55,10 +85,10 @@ export default function ConfigurationPage() {
     try {
       await updateLeagueSettings({
         league_name: leagueName.trim(),
-        points_for_win: pointsForWin,
-        points_for_draw: pointsForDraw,
-        period_duration_minutes: periodDuration,
-        max_accumulated_fouls: maxFouls,
+        points_for_win: parsedWin,
+        points_for_draw: parsedDraw,
+        period_duration_minutes: parsedDuration,
+        max_accumulated_fouls: parsedFouls,
       });
 
       setSavedSuccess(true);
@@ -157,20 +187,13 @@ export default function ConfigurationPage() {
                 <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
                   Puntos por Victoria
                 </label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                <NumericInput
                   min={1}
                   max={5}
+                  required
                   value={pointsForWin}
-                  onKeyDown={(e) => {
-                    if ([".", ",", "e", "E", "+", "-"].includes(e.key)) {
-                      e.preventDefault();
-                    }
-                  }}
-                  onChange={(e) => setPointsForWin(parseInt(e.target.value) || 3)}
-                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-scoreboard font-bold focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  onValueChange={setPointsForWin}
+                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-scoreboard font-bold focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -178,20 +201,13 @@ export default function ConfigurationPage() {
                 <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
                   Puntos por Empate
                 </label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                <NumericInput
                   min={0}
                   max={3}
+                  required
                   value={pointsForDraw}
-                  onKeyDown={(e) => {
-                    if ([".", ",", "e", "E", "+", "-"].includes(e.key)) {
-                      e.preventDefault();
-                    }
-                  }}
-                  onChange={(e) => setPointsForDraw(parseInt(e.target.value) || 1)}
-                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-scoreboard font-bold focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  onValueChange={setPointsForDraw}
+                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-scoreboard font-bold focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -209,20 +225,13 @@ export default function ConfigurationPage() {
                 <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
                   Duración de cada tiempo (minutos)
                 </label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                <NumericInput
                   min={10}
                   max={45}
+                  required
                   value={periodDuration}
-                  onKeyDown={(e) => {
-                    if ([".", ",", "e", "E", "+", "-"].includes(e.key)) {
-                      e.preventDefault();
-                    }
-                  }}
-                  onChange={(e) => setPeriodDuration(parseInt(e.target.value) || 20)}
-                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-scoreboard font-bold focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  onValueChange={setPeriodDuration}
+                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-scoreboard font-bold focus:outline-none focus:border-blue-500"
                 />
                 <span className="text-[10px] text-slate-500 mt-1 block">Reglamentario FIFA: 20 min netos por tiempo.</span>
               </div>
@@ -231,20 +240,13 @@ export default function ConfigurationPage() {
                 <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
                   Límite de Faltas Acumuladas para Doble Penalti
                 </label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                <NumericInput
                   min={3}
                   max={10}
+                  required
                   value={maxFouls}
-                  onKeyDown={(e) => {
-                    if ([".", ",", "e", "E", "+", "-"].includes(e.key)) {
-                      e.preventDefault();
-                    }
-                  }}
-                  onChange={(e) => setMaxFouls(parseInt(e.target.value) || 5)}
-                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-scoreboard font-bold focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  onValueChange={setMaxFouls}
+                  className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-scoreboard font-bold focus:outline-none focus:border-blue-500"
                 />
                 <span className="text-[10px] text-slate-500 mt-1 block">Reglamentario FIFA: A partir de la 5ta falta.</span>
               </div>

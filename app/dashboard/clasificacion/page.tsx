@@ -6,6 +6,7 @@ import { useFutsal } from "@/lib/store/futsalStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { StandingsTable } from "@/components/sports/StandingsTable";
 import { TeamLogo } from "@/components/sports/TeamLogo";
+import { NumericInput } from "@/components/ui/NumericInput";
 import { useToast } from "@/lib/context/ToastContext";
 import { formatSupabaseError } from "@/lib/utils/errorHandler";
 import { isUUID } from "@/lib/utils/validators";
@@ -111,7 +112,7 @@ export default function StandingsPage() {
   const [modalSeasonId, setModalSeasonId] = useState<string>("");
   const [modalCompetitionId, setModalCompetitionId] = useState<string>("");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
-  const [pointsDelta, setPointsDelta] = useState<number>(-1);
+  const [pointsDelta, setPointsDelta] = useState<string>("-1");
   const [reason, setReason] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -125,13 +126,15 @@ export default function StandingsPage() {
   const selectedTeam = validTeams.find((t) => t.id === selectedTeamId) || teams.find((t) => t.id === selectedTeamId) || teams[0];
   const selectedStanding = standings.find((s) => s.team_id === selectedTeam?.id);
 
+  const parsedPointsDelta = Number.isNaN(parseInt(pointsDelta, 10)) ? 0 : parseInt(pointsDelta, 10);
+
   const currentMatchPoints =
     selectedStanding?.match_points !== undefined
       ? selectedStanding.match_points
       : (selectedStanding?.points || 0) - (selectedStanding?.points_adjustment || 0);
   const currentAdjustment = selectedStanding?.points_adjustment || 0;
   const currentTotal = selectedStanding?.points || 0;
-  const projectedTotal = currentTotal + Number(pointsDelta || 0);
+  const projectedTotal = currentTotal + parsedPointsDelta;
 
   // Competiciones disponibles en el modal según la temporada seleccionada
   const modalCompetitions = useMemo(() => {
@@ -147,7 +150,7 @@ export default function StandingsPage() {
   const canSubmitAdjustment =
     isValidSelection &&
     isModalTeamValid &&
-    pointsDelta !== 0 &&
+    parsedPointsDelta !== 0 &&
     reason.trim().length > 0 &&
     !isSubmitting;
 
@@ -177,7 +180,7 @@ export default function StandingsPage() {
       "";
     setSelectedTeamId(teamId);
 
-    setPointsDelta(-1);
+    setPointsDelta("-1");
     setReason("");
     setModalOpen(true);
   };
@@ -207,7 +210,7 @@ export default function StandingsPage() {
       return;
     }
 
-    if (pointsDelta === 0) {
+    if (parsedPointsDelta === 0) {
       toast.warning("El valor del ajuste no puede ser cero.");
       return;
     }
@@ -216,14 +219,14 @@ export default function StandingsPage() {
     try {
       await addStandingAdjustment({
         team_id: selectedTeamId,
-        points_delta: Number(pointsDelta),
+        points_delta: parsedPointsDelta,
         reason: reason.trim(),
         season_id: modalSeasonId,
         competition_id: modalCompetitionId,
       });
 
       toast.success(
-        `Ajuste de ${pointsDelta > 0 ? `+${pointsDelta}` : pointsDelta} pts registrado para ${selectedTeam?.name}.`
+        `Ajuste de ${parsedPointsDelta > 0 ? `+${parsedPointsDelta}` : parsedPointsDelta} pts registrado para ${selectedTeam?.name}.`
       );
       setModalOpen(false);
     } catch (err: any) {
@@ -715,9 +718,9 @@ export default function StandingsPage() {
                       <button
                         key={preset.value}
                         type="button"
-                        onClick={() => setPointsDelta(preset.value)}
+                        onClick={() => setPointsDelta(String(preset.value))}
                         className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${
-                          pointsDelta === preset.value
+                          parsedPointsDelta === preset.value
                             ? "bg-blue-600 text-white"
                             : "bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700"
                         }`}
@@ -728,11 +731,11 @@ export default function StandingsPage() {
                   </div>
 
                   <div className="relative">
-                    <input
-                      type="number"
+                    <NumericInput
+                      allowNegative
                       step="1"
                       value={pointsDelta}
-                      onChange={(e) => setPointsDelta(parseInt(e.target.value) || 0)}
+                      onChange={(e) => setPointsDelta(e.target.value)}
                       placeholder="Ej. -3 o +1"
                       className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-base font-black font-scoreboard focus:outline-none focus:border-blue-500 transition-colors"
                       required

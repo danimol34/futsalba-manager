@@ -1,23 +1,21 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo, useCallback, useEffect, memo } from "react";
 import Link from "next/link";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PlayerAvatar, PositionBadge } from "@/components/sports/PlayerAvatar";
 import { TeamLogo } from "@/components/sports/TeamLogo";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { NumericInput } from "@/components/ui/NumericInput";
 import { useToast } from "@/lib/context/ToastContext";
 import { formatSupabaseError } from "@/lib/utils/errorHandler";
-import { PlayerPosition, Player } from "@/types";
-import { playersService, PlayerInsert } from "@/lib/services/players";
+import { PlayerPosition, Player, Team } from "@/types";
+import { playersService, PlayerInsert, PlayerUpdate } from "@/lib/services/players";
 import {
   Users,
   Plus,
   Search,
-  Filter,
-  Flame,
-  Award,
   ChevronRight,
   X,
   Check,
@@ -25,7 +23,6 @@ import {
   Trash2,
   Loader2,
   Power,
-  Shield,
   Camera,
   AlertCircle,
 } from "lucide-react";
@@ -34,85 +31,87 @@ const POSITIONS: PlayerPosition[] = ["PORTERO", "CIERRE", "ALA", "PIVOT", "UNIVE
 const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
-export default function PlayersPage() {
-  const { players, teams, addPlayer, updatePlayer, deletePlayer, isLoadingRemote, currentUserRole } = useFutsal();
+interface PlayerFormModalProps {
+  isOpen: boolean;
+  editingPlayer: Player | null;
+  onClose: () => void;
+  teams: Team[];
+  players: Player[];
+  addPlayer: (player: PlayerInsert) => Promise<Player>;
+  updatePlayer: (id: string, updates: PlayerUpdate) => Promise<Player>;
+}
+
+const PlayerFormModal = memo(function PlayerFormModal({
+  isOpen,
+  editingPlayer,
+  onClose,
+  teams,
+  players,
+  addPlayer,
+  updatePlayer,
+}: PlayerFormModalProps) {
   const toast = useToast();
-  const isReadOnly = currentUserRole === "PRENSA";
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
-  const [selectedPosFilter, setSelectedPosFilter] = useState<string>("ALL");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submittingPhase, setSubmittingPhase] = useState<"idle" | "saving" | "uploading">("idle");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  // Form State
+  // Estado local del formulario para evitar re-renders del listado
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [teamId, setTeamId] = useState("");
-  const [jerseyNumber, setJerseyNumber] = useState<number | "">(10);
+  const [jerseyNumber, setJerseyNumber] = useState<string>("10");
   const [position, setPosition] = useState<PlayerPosition>("ALA");
   const [documentNumber, setDocumentNumber] = useState("");
   const [birthDate, setBirthDate] = useState("2000-01-01");
   const [status, setStatus] = useState<boolean>(true);
 
-  // Photo Upload State
+  // Estado local de subida de fotografía
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const filteredPlayers = players.filter((p) => {
-    const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
-    const matchesSearch =
-      fullName.includes(searchTerm.toLowerCase()) ||
-      (p.document_number && p.document_number.includes(searchTerm)) ||
-      p.jersey_number.toString() === searchTerm;
-    const matchesTeam =
-      selectedTeamFilter === "ALL" || p.team_id === selectedTeamFilter;
-    const matchesPos =
-      selectedPosFilter === "ALL" || p.position === selectedPosFilter;
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingPhase, setSubmittingPhase] = useState<"idle" | "saving" | "uploading">("idle");
 
-    return matchesSearch && matchesTeam && matchesPos;
-  });
+  useEffect(() => {
+    if (!isOpen) return;
 
-  const openCreateModal = () => {
-    setEditingPlayer(null);
-    setFirstName("");
-    setLastName("");
-    setTeamId(teams[0]?.id || "");
-    setJerseyNumber(10);
-    setPosition("ALA");
-    setDocumentNumber("");
-    setBirthDate("2000-01-01");
+    if (editingPlayer) {
+      setFirstName(editingPlayer.first_name || "");
+      setLastName(editingPlayer.last_name || "");
+      setTeamId(editingPlayer.team_id || "");
+      setJerseyNumber(String(editingPlayer.jersey_number ?? 0));
+      setPosition(editingPlayer.position || "ALA");
+      setDocumentNumber(editingPlayer.document_number || "");
+      setBirthDate(editingPlayer.birth_date || "2000-01-01");
+      setPhotoPreview(editingPlayer.photo_url || null);
+      setStatus(editingPlayer.status === true || editingPlayer.status === "ACTIVO");
+    } else {
+      setFirstName("");
+      setLastName("");
+      setTeamId(teams[0]?.id || "");
+      setJerseyNumber("10");
+      setPosition("ALA");
+      setDocumentNumber("");
+      setBirthDate("2000-01-01");
+      setPhotoPreview(null);
+      setStatus(true);
+    }
+
     setPhotoFile(null);
-    setPhotoPreview(null);
     setPhotoError(null);
+    setIsSubmitting(false);
     setSubmittingPhase("idle");
-    setStatus(true);
     if (fileInputRef.current) fileInputRef.current.value = "";
-    setModalOpen(true);
-  };
+  }, [isOpen, editingPlayer, teams]);
 
-  const openEditModal = (player: Player) => {
-    setEditingPlayer(player);
-    setFirstName(player.first_name);
-    setLastName(player.last_name);
-    setTeamId(player.team_id);
-    setJerseyNumber(player.jersey_number ?? 0);
-    setPosition(player.position);
-    setDocumentNumber(player.document_number || "");
-    setBirthDate(player.birth_date || "2000-01-01");
-    setPhotoFile(null);
-    setPhotoPreview(player.photo_url || null);
-    setPhotoError(null);
-    setSubmittingPhase("idle");
-    setStatus(player.status === true || player.status === "ACTIVO");
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    setModalOpen(true);
-  };
+  useEffect(() => {
+    return () => {
+      if (photoPreview && photoPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(photoPreview);
+      }
+    };
+  }, [photoPreview]);
+
+  if (!isOpen) return null;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -134,12 +133,23 @@ export default function PlayersPage() {
 
     setPhotoError(null);
     setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    const objectUrl = URL.createObjectURL(file);
+    setPhotoPreview((prev) => {
+      if (prev && prev.startsWith("blob:")) {
+        URL.revokeObjectURL(prev);
+      }
+      return objectUrl;
+    });
   };
 
   const handleRemovePhoto = () => {
     setPhotoFile(null);
-    setPhotoPreview(null);
+    setPhotoPreview((prev) => {
+      if (prev && prev.startsWith("blob:")) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
     setPhotoError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -151,18 +161,19 @@ export default function PlayersPage() {
       return;
     }
 
-    if (jerseyNumber === "" || isNaN(Number(jerseyNumber))) {
+    const rawDorsal = String(jerseyNumber).trim();
+    if (rawDorsal === "" || isNaN(Number(rawDorsal))) {
       toast.warning("El dorsal de la camiseta es obligatorio.");
       return;
     }
 
-    const dorsalNum = Number(jerseyNumber);
+    const dorsalNum = Number(rawDorsal);
     if (!Number.isInteger(dorsalNum) || dorsalNum < 0 || dorsalNum > 99) {
       toast.warning("El dorsal debe ser un número entero entre 0 y 99.");
       return;
     }
 
-    // Client-side pre-check for duplicate dorsal within the same team
+    // Validación únicamente al guardar (no en cada pulsación)
     const duplicate = players.find(
       (p) =>
         p.team_id === teamId &&
@@ -197,7 +208,6 @@ export default function PlayersPage() {
       if (editingPlayer) {
         await updatePlayer(editingPlayer.id, payload);
 
-        // Si se seleccionó una nueva foto, subirla a Supabase Storage
         if (photoFile) {
           setSubmittingPhase("uploading");
           try {
@@ -209,13 +219,11 @@ export default function PlayersPage() {
             );
           }
         } else if (!photoPreview && editingPlayer.photo_url) {
-          // El usuario quitó la fotografía existente
           await updatePlayer(editingPlayer.id, { photo_url: null });
         }
 
         toast.success("✅ Datos del jugador actualizados correctamente");
       } else {
-        // Flujo nuevo jugador: Crear primero en BD -> obtener ID -> subir fotografía -> actualizar foto
         const created = await addPlayer(payload);
 
         if (photoFile) {
@@ -234,7 +242,7 @@ export default function PlayersPage() {
         }
       }
 
-      setModalOpen(false);
+      onClose();
     } catch (err: any) {
       const formatted = formatSupabaseError(err);
       toast.error(formatted.message, formatted.title);
@@ -243,6 +251,330 @@ export default function PlayersPage() {
       setSubmittingPhase("idle");
     }
   };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 max-w-xl w-full max-h-[92vh] overflow-y-auto overflow-x-hidden shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <h3 className="text-lg font-black text-white flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-500" />
+            {editingPlayer ? "EDITAR JUGADOR" : "REGISTRAR NUEVO JUGADOR"}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Nombre *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Ej: Lucas"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Apellido *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Ej: Tripodi"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Asignar Equipo (Supabase) *
+              </label>
+              <select
+                required
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="">Selecciona un equipo</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.short_name})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Dorsal / Camiseta (0 - 99) *
+              </label>
+              <NumericInput
+                required
+                min={0}
+                max={99}
+                step={1}
+                placeholder="Ej: 10"
+                value={jerseyNumber}
+                onValueChange={setJerseyNumber}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-mono font-bold focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Posición Oficial (ENUM) *
+              </label>
+              <select
+                value={position}
+                onChange={(e) => setPosition(e.target.value as PlayerPosition)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              >
+                {POSITIONS.map((pos) => (
+                  <option key={pos} value={pos}>
+                    {pos}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                DNI / Documento de Identidad
+              </label>
+              <input
+                type="text"
+                placeholder="Ej: 42.123.456"
+                value={documentNumber}
+                onChange={(e) => setDocumentNumber(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Fecha de Nacimiento
+              </label>
+              <input
+                type="date"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
+                Estado del Jugador
+              </label>
+              <select
+                value={status ? "ACTIVO" : "INACTIVO"}
+                onChange={(e) => setStatus(e.target.value === "ACTIVO")}
+                className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="ACTIVO">Activo (Habilitado para jugar)</option>
+                <option value="INACTIVO">Inactivo (Suspendido / No federado)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Subida real de Fotografía del Jugador */}
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5 flex items-center justify-between">
+              <span>Fotografía del Jugador</span>
+              <span className="text-[10px] text-slate-500 font-normal">
+                JPG, PNG o WebP (máx. 5 MB)
+              </span>
+            </label>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {photoError && (
+              <div className="mb-2 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{photoError}</span>
+              </div>
+            )}
+
+            {photoPreview ? (
+              <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row items-center gap-3.5">
+                <div className="relative w-20 h-20 rounded-2xl overflow-hidden border-2 border-blue-500/40 bg-slate-950 shrink-0 shadow-lg">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photoPreview}
+                    alt="Vista previa jugador"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+
+                <div className="flex-1 text-center sm:text-left min-w-0">
+                  <div className="text-xs font-bold text-white truncate">
+                    {photoFile ? photoFile.name : "Fotografía asignada"}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    {photoFile
+                      ? `${(photoFile.size / 1024).toFixed(1)} KB • Lista para subir`
+                      : "Imagen del perfil del jugador"}
+                  </div>
+
+                  <div className="mt-2.5 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                    >
+                      <Camera className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Cambiar fotografía</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={handleRemovePhoto}
+                      className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Quitar fotografía</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="p-5 rounded-2xl border-2 border-dashed border-slate-800 hover:border-blue-500/50 bg-slate-900/40 hover:bg-slate-900 transition-all cursor-pointer text-center group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-blue-600/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto mb-2 group-hover:scale-105 transition-transform">
+                  <Camera className="w-6 h-6" />
+                </div>
+                <div className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors">
+                  Seleccionar fotografía
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Haz clic para abrir tu fototeca, galería o cámara móvil
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Submit buttons */}
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50 transition-all"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>
+                    {submittingPhase === "uploading"
+                      ? "Subiendo fotografía..."
+                      : editingPlayer
+                      ? "Actualizando jugador..."
+                      : "Registrando jugador..."}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>{editingPlayer ? "Actualizar Jugador" : "Registrar Jugador"}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+});
+
+export default function PlayersPage() {
+  const { players, teams, addPlayer, updatePlayer, deletePlayer, isLoadingRemote, currentUserRole } = useFutsal();
+  const toast = useToast();
+  const isReadOnly = currentUserRole === "PRENSA";
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
+  const [selectedPosFilter, setSelectedPosFilter] = useState<string>("ALL");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const teamById = useMemo(() => {
+    const map = new Map<string, Team>();
+    for (const t of teams) {
+      map.set(t.id, t);
+    }
+    return map;
+  }, [teams]);
+
+  const filteredPlayers = useMemo(() => {
+    const cleanSearch = searchTerm.trim().toLowerCase();
+    return players.filter((p) => {
+      const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
+      const matchesSearch =
+        !cleanSearch ||
+        fullName.includes(cleanSearch) ||
+        (p.document_number && p.document_number.toLowerCase().includes(cleanSearch)) ||
+        p.jersey_number.toString() === cleanSearch;
+      const matchesTeam =
+        selectedTeamFilter === "ALL" || p.team_id === selectedTeamFilter;
+      const matchesPos =
+        selectedPosFilter === "ALL" || p.position === selectedPosFilter;
+
+      return matchesSearch && matchesTeam && matchesPos;
+    });
+  }, [players, searchTerm, selectedTeamFilter, selectedPosFilter]);
+
+  const openCreateModal = useCallback(() => {
+    setEditingPlayer(null);
+    setModalOpen(true);
+  }, []);
+
+  const openEditModal = useCallback((player: Player) => {
+    setEditingPlayer(player);
+    setModalOpen(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setEditingPlayer(null);
+  }, []);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`¿Estás seguro de que deseas eliminar al jugador "${name}"?`)) return;
@@ -373,7 +705,7 @@ export default function PlayersPage() {
           /* Players Grid */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {filteredPlayers.map((player) => {
-              const team = teams.find((t) => t.id === player.team_id);
+              const team = teamById.get(player.team_id);
               const isActive = player.status === true || player.status === "ACTIVO";
               const isDeleting = deletingId === player.id;
 
@@ -505,293 +837,16 @@ export default function PlayersPage() {
           </div>
         )}
 
-        {/* Modal Create / Edit */}
-        {modalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 max-w-xl w-full max-h-[92vh] overflow-y-auto overflow-x-hidden shadow-2xl">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <Users className="w-5 h-5 text-blue-500" />
-                  {editingPlayer ? "EDITAR JUGADOR" : "REGISTRAR NUEVO JUGADOR"}
-                </h3>
-                <button
-                  onClick={() => setModalOpen(false)}
-                  disabled={isSubmitting}
-                  className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Nombre *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ej: Lucas"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Apellido *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ej: Tripodi"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Asignar Equipo (Supabase) *
-                    </label>
-                    <select
-                      required
-                      value={teamId}
-                      onChange={(e) => setTeamId(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Selecciona un equipo</option>
-                      {teams.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name} ({t.short_name})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Dorsal / Camiseta (0 - 99) *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={0}
-                      max={99}
-                      step={1}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder="Ej: 10"
-                      value={jerseyNumber}
-                      onKeyDown={(e) => {
-                        if ([".", ",", "e", "E", "+", "-"].includes(e.key)) {
-                          e.preventDefault();
-                        }
-                      }}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === "") {
-                          setJerseyNumber("");
-                          return;
-                        }
-                        const intVal = parseInt(val, 10);
-                        if (!isNaN(intVal) && intVal >= 0 && intVal <= 99) {
-                          setJerseyNumber(intVal);
-                        }
-                      }}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-mono font-bold focus:outline-none focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Posición Oficial (ENUM) *
-                    </label>
-                    <select
-                      value={position}
-                      onChange={(e) => setPosition(e.target.value as PlayerPosition)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    >
-                      {POSITIONS.map((pos) => (
-                        <option key={pos} value={pos}>
-                          {pos}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      DNI / Documento de Identidad
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej: 42.123.456"
-                      value={documentNumber}
-                      onChange={(e) => setDocumentNumber(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Fecha de Nacimiento
-                    </label>
-                    <input
-                      type="date"
-                      value={birthDate}
-                      onChange={(e) => setBirthDate(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                      Estado del Jugador
-                    </label>
-                    <select
-                      value={status ? "ACTIVO" : "INACTIVO"}
-                      onChange={(e) => setStatus(e.target.value === "ACTIVO")}
-                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="ACTIVO">Activo (Habilitado para jugar)</option>
-                      <option value="INACTIVO">Inactivo (Suspendido / No federado)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Subida real de Fotografía del Jugador */}
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5 flex items-center justify-between">
-                    <span>Fotografía del Jugador</span>
-                    <span className="text-[10px] text-slate-500 font-normal">
-                      JPG, PNG o WebP (máx. 5 MB)
-                    </span>
-                  </label>
-
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-
-                  {photoError && (
-                    <div className="mb-2 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>{photoError}</span>
-                    </div>
-                  )}
-
-                  {photoPreview ? (
-                    <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row items-center gap-3.5">
-                      <div className="relative w-20 h-20 rounded-2xl overflow-hidden border-2 border-blue-500/40 bg-slate-950 shrink-0 shadow-lg">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={photoPreview}
-                          alt="Vista previa jugador"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-
-                      <div className="flex-1 text-center sm:text-left min-w-0">
-                        <div className="text-xs font-bold text-white truncate">
-                          {photoFile ? photoFile.name : "Fotografía asignada"}
-                        </div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          {photoFile
-                            ? `${(photoFile.size / 1024).toFixed(1)} KB • Lista para subir`
-                            : "Imagen del perfil del jugador"}
-                        </div>
-
-                        <div className="mt-2.5 flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                          <button
-                            type="button"
-                            disabled={isSubmitting}
-                            onClick={() => fileInputRef.current?.click()}
-                            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                          >
-                            <Camera className="w-3.5 h-3.5 text-blue-400" />
-                            <span>Cambiar fotografía</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isSubmitting}
-                            onClick={handleRemovePhoto}
-                            className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Quitar fotografía</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="p-5 rounded-2xl border-2 border-dashed border-slate-800 hover:border-blue-500/50 bg-slate-900/40 hover:bg-slate-900 transition-all cursor-pointer text-center group"
-                    >
-                      <div className="w-12 h-12 rounded-2xl bg-blue-600/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto mb-2 group-hover:scale-105 transition-transform">
-                        <Camera className="w-6 h-6" />
-                      </div>
-                      <div className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors">
-                        Seleccionar fotografía
-                      </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        Haz clic para abrir tu fototeca, galería o cámara móvil
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Submit buttons */}
-                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => setModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-50 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50 transition-all"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>
-                          {submittingPhase === "uploading"
-                            ? "Subiendo fotografía..."
-                            : editingPlayer
-                            ? "Actualizando jugador..."
-                            : "Registrando jugador..."}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-4 h-4" />
-                        <span>{editingPlayer ? "Actualizar Jugador" : "Registrar Jugador"}</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {/* Modal Create / Edit con estado local aislado */}
+        <PlayerFormModal
+          isOpen={modalOpen}
+          editingPlayer={editingPlayer}
+          onClose={closeModal}
+          teams={teams}
+          players={players}
+          addPlayer={addPlayer}
+          updatePlayer={updatePlayer}
+        />
       </div>
     </DashboardLayout>
   );

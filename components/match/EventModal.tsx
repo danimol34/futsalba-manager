@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
-import { Match, MatchEventType, Team, Player } from "@/types";
+import React, { useState, useEffect, useMemo } from "react";
+import { Match, MatchEventType } from "@/types";
 import { useFutsal } from "@/lib/store/futsalStore";
 import { TeamLogo } from "../sports/TeamLogo";
 import { PlayerAvatar } from "../sports/PlayerAvatar";
-import { X, Check, AlertCircle } from "lucide-react";
+import { NumericInput } from "../ui/NumericInput";
+import { X, Check } from "lucide-react";
 
 interface EventModalProps {
   isOpen: boolean;
@@ -15,7 +16,7 @@ interface EventModalProps {
   currentMinute: number;
 }
 
-export function EventModal({
+export const EventModal = React.memo(function EventModal({
   isOpen,
   onClose,
   match,
@@ -24,23 +25,48 @@ export function EventModal({
 }: EventModalProps) {
   const { teams, players, addMatchEvent } = useFutsal();
 
-  const homeTeam = teams.find((t) => t.id === match.home_team_id);
-  const awayTeam = teams.find((t) => t.id === match.away_team_id);
+  const homeTeam = useMemo(
+    () => teams.find((t) => t.id === match.home_team_id),
+    [teams, match.home_team_id]
+  );
+  const awayTeam = useMemo(
+    () => teams.find((t) => t.id === match.away_team_id),
+    [teams, match.away_team_id]
+  );
 
   const [selectedTeamId, setSelectedTeamId] = useState<string>(match.home_team_id);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
   const [secondaryPlayerId, setSecondaryPlayerId] = useState<string>("");
-  const [minute, setMinute] = useState<number>(currentMinute || 1);
-  const [second, setSecond] = useState<number>(0);
+  const [minute, setMinute] = useState<string>(String(currentMinute || 1));
+  const [second, setSecond] = useState<string>("0");
   const [notes, setNotes] = useState<string>("");
   const [step, setStep] = useState<"form" | "confirm">("form");
 
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedTeamId(match.home_team_id);
+      setSelectedPlayerId("");
+      setSecondaryPlayerId("");
+      setMinute(String(currentMinute || 1));
+      setSecond("0");
+      setNotes("");
+      setStep("form");
+    }
+  }, [isOpen, match.home_team_id, currentMinute]);
+
+  const currentTeamPlayers = useMemo(
+    () => players.filter((p) => p.team_id === selectedTeamId),
+    [players, selectedTeamId]
+  );
+
   if (!isOpen || !eventType) return null;
 
-  const currentTeamPlayers = players.filter((p) => p.team_id === selectedTeamId);
   const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
   const secondaryPlayer = players.find((p) => p.id === secondaryPlayerId);
   const activeTeam = teams.find((t) => t.id === selectedTeamId);
+
+  const parsedMinute = Math.max(1, parseInt(minute, 10) || 1);
+  const parsedSecond = Math.min(59, Math.max(0, parseInt(second, 10) || 0));
 
   const eventLabels: Record<MatchEventType, { label: string; icon: string; color: string }> = {
     goal: { label: "GOL", icon: "⚽", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" },
@@ -75,8 +101,8 @@ export function EventModal({
       secondary_player_id: secondaryPlayerId || undefined,
       event_type: eventType,
       period: match.period,
-      minute,
-      second,
+      minute: parsedMinute,
+      second: parsedSecond,
       notes,
     });
 
@@ -230,12 +256,11 @@ export function EventModal({
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
                   MINUTO
                 </label>
-                <input
-                  type="number"
+                <NumericInput
                   min={1}
                   max={60}
                   value={minute}
-                  onChange={(e) => setMinute(parseInt(e.target.value) || 1)}
+                  onChange={(e) => setMinute(e.target.value)}
                   className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-center text-sm font-bold focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -243,12 +268,11 @@ export function EventModal({
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
                   SEGUNDO
                 </label>
-                <input
-                  type="number"
+                <NumericInput
                   min={0}
                   max={59}
                   value={second}
-                  onChange={(e) => setSecond(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setSecond(e.target.value)}
                   className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-center text-sm font-bold focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -337,7 +361,7 @@ export function EventModal({
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-400">Tiempo:</span>
                 <span className="font-mono font-bold text-white">
-                  Minuto {minute}:{second.toString().padStart(2, "0")}
+                  Minuto {parsedMinute}:{parsedSecond.toString().padStart(2, "0")}
                 </span>
               </div>
 
@@ -372,4 +396,4 @@ export function EventModal({
       </div>
     </div>
   );
-}
+});
